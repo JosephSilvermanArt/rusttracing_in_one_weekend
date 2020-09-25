@@ -1,3 +1,4 @@
+use rand::prelude::*;
 use std::convert::Into;
 use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Sub};
@@ -21,11 +22,42 @@ where
         + From<f64>
         + Into<T>,
 {
+    pub fn random_in_unitsphere() -> Vector3<T> {
+        loop {
+            let p = Vector3::random_range(-1.0, 1.0);
+            if p.sqrmagnitude() >= 1.0 {
+                continue;
+            }
+            return p;
+        }
+    }
     pub fn zero() -> Vector3<T> {
         Vector3 {
             x: (0.0).into(),
             y: (0.0).into(),
             z: (0.0).into(),
+        }
+    }
+    pub fn random() -> Vector3<T> {
+        Vector3 {
+            x: thread_rng().gen::<f64>().into(),
+            y: thread_rng().gen::<f64>().into(),
+            z: thread_rng().gen::<f64>().into(),
+        }
+    }
+    pub fn random_range(min: f64, max: f64) -> Vector3<T> {
+        let mut rng = thread_rng();
+        Vector3 {
+            x: rng.gen_range(min, max).into(),
+            y: rng.gen_range(min, max).into(),
+            z: rng.gen_range(min, max).into(),
+        }
+    }
+    pub fn one() -> Vector3<T> {
+        Vector3 {
+            x: (1.0).into(),
+            y: (1.0).into(),
+            z: (1.0).into(),
         }
     }
 

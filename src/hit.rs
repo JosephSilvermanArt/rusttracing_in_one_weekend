@@ -9,20 +9,6 @@ pub struct HitInfo {
     pub front_face: bool,
 }
 
-impl HitInfo {
-    fn setup_HitInfo(t: f64, p: Vector3<f64>, r: &Ray, outward_normal: &Vector3<f64>) -> HitInfo {
-        let f_face = r.dir.dot(outward_normal) < 0.0;
-        HitInfo {
-            p: p,
-            t: t,
-            front_face: f_face,
-            normal: match f_face {
-                true => *outward_normal,
-                false => outward_normal * -1.0,
-            },
-        }
-    }
-}
 pub trait Hittable {
     //Should this return an option, or a bool ith a mutable ref instead, like the book? Is book way better for memory coherency?
     fn hit(&self, r: &Ray, t_min: f64, t_max: f64) -> Option<HitInfo>;
@@ -76,27 +62,36 @@ impl Hittable for Sphere {
         let a = r.dir.sqrmagnitude();
         let half_b = oc.dot(&r.dir);
         let c = oc.sqrmagnitude() - (self.radius * self.radius);
-        let discriminant = half_b * half_b - a * c;
+        let discriminant = (half_b * half_b) - (a * c);
         if discriminant > 0.0 {
             let root = discriminant.sqrt();
             let temp = (-half_b - root) / a;
+            let hit_p = r.at(temp);
+            let outward_normal = (r.at(temp) - self.center) / self.radius;
+            let f_face = r.dir.dot(&outward_normal) < 0.0;
             if temp < t_max && temp > t_min {
-                return Some(HitInfo::setup_HitInfo(
-                    temp,
-                    r.at(temp),
-                    r,
-                    &(((r.at(temp)) - self.center) / self.radius),
-                ));
+                return Some(HitInfo {
+                    p: hit_p,
+                    t: temp,
+                    front_face: f_face,
+                    normal: match f_face {
+                        true => outward_normal,
+                        false => &outward_normal * -1.0,
+                    },
+                });
             };
             let temp = (-half_b + root) / a;
             if temp < t_max && temp > t_min {
-                return Some(HitInfo::setup_HitInfo(
-                    temp,
-                    r.at(temp),
-                    r,
-                    &(((r.at(temp)) - self.center) / self.radius),
-                ));
-            };
+                return Some(HitInfo {
+                    p: hit_p,
+                    t: temp,
+                    front_face: f_face,
+                    normal: match f_face {
+                        true => outward_normal,
+                        false => &outward_normal * -1.0,
+                    },
+                });
+            }
         }
         return None;
     }

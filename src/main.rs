@@ -73,30 +73,10 @@ where
         return Vector3::zero();
     }
     match world.hit(r, 0.001, f64::INFINITY) {
-        Some(hit) => {
-            match hit.mat.scatter(r, &hit) {
-                Some(result) => {
-                    return result.attenuation * &raycolor(&result.ray, world, depth - 1)
-                }
-                None => return Color::zero(),
-            }
-            // let target = hit.p + hit.normal + random_unit_vector();
-            // return 0.5
-            // * raycolor(
-            // &Ray {
-            // origin: hit.p,
-            // dir: target - hit.p,
-            // },
-            // world,
-            // depth - 1,
-            // );
-            // (hit.normal
-            // + Color {
-            // x: 1.0,
-            // y: 1.0,
-            // z: 1.0,
-            // });
-        }
+        Some(hit) => match hit.mat.scatter(r, &hit) {
+            Some(result) => return result.attenuation * &raycolor(&result.ray, world, depth - 1),
+            None => return Color::zero(),
+        },
         None => {
             let t = 0.5 * (r.dir.normalized().y + 1.0);
             let botcolor = Color {
@@ -132,7 +112,7 @@ fn bufferLoop(b: &mut Vec<u32>, width: u32, height: u32, sample_count: u32) {
             y: 0.6,
             z: 0.6,
         },
-        fuzz: 0.87,
+        fuzz: 0.1,
     };
     let mat2 = Lambert {
         albedo: Color {
@@ -148,15 +128,34 @@ fn bufferLoop(b: &mut Vec<u32>, width: u32, height: u32, sample_count: u32) {
             z: 0.5,
         },
     };
+    let mat4 = Dialectric {
+        albedo: Color {
+            x: 0.0,
+            y: 1.0,
+            z: 1.0,
+        },
+        ref_idx: 1.5,
+        fuzz: 0.1,
+    };
     world.add(Box::new(Sphere {
-        center: Vector3::forward(),
-        radius: 0.5,
-        mat: Box::new(mat3),
+        center: &Vector3::forward() * 2,
+        radius: 0.8,
+        mat: Box::new(mat1),
     })); //make_shared<sphere>(point3(0,0,-1), 0.5));
     world.add(Box::new(Sphere {
         center: Vector3::forward() + Vector3::right(),
         radius: 0.5,
-        mat: Box::new(mat1),
+        mat: Box::new(mat4),
+    }));
+    world.add(Box::new(Sphere {
+        center: Vector3::forward() + (-1.0 * Vector3::right()),
+        radius: 0.5,
+        mat: Box::new(mat4),
+    })); //make_shared<sphere>(point3(0,0,-1), 0.5));
+    world.add(Box::new(Sphere {
+        center: Vector3::forward() + (-1.0 * Vector3::right()),
+        radius: -0.3,
+        mat: Box::new(mat4),
     })); //make_shared<sphere>(point3(0,0,-1), 0.5));
     world.add(Box::new(Sphere {
         center: Vector3 {
@@ -173,8 +172,8 @@ fn bufferLoop(b: &mut Vec<u32>, width: u32, height: u32, sample_count: u32) {
         for i in (0..(width)).rev() {
             let mut pixel_color = Color::zero();
             for k in 0..sample_count {
-                let u = (i as f64 + rng.gen_range(0.0, 1.0)) / (width - 1) as f64; // REPLACE WITH RANDOM
-                let v = (j as f64 + rng.gen_range(0.0, 1.0)) / (height - 1) as f64; // REPLACE WITH RANDOM
+                let u = (i as f64 + rng.gen_range(0.0, 1.0)) / (width) as f64;
+                let v = (j as f64 + rng.gen_range(0.0, 1.0)) / (height) as f64;
                 let r = cam.get_ray(u, v);
                 pixel_color = pixel_color + raycolor(&r, &world, max_depth);
             }
@@ -196,9 +195,8 @@ fn main() {
     // Image
     let width = 400;
     let height = 225;
-    let samplect = 100;
+    let samplect = 200;
 
-    // let writer = PpmWriter::new(width, height, "test").expect("Creating PPMWriter Failed");
     let mut buffer: Vec<u32> = vec![0; width as usize * height as usize];
     let mut renderbuffer: Vec<u32> = vec![0; width as usize * height as usize];
     let wi = minifb::WindowOptions {
@@ -218,18 +216,6 @@ fn main() {
     let size = height * width;
     let mut i = 0;
     while window.is_open() && !window.is_key_down(Key::C) {
-        // if i < size {
-        //     for j in 0..size / 4 {
-        //         bufferIterator(
-        //             &mut buffer[(size - 1 - (i + j)) as usize],
-        //             (i + j) as usize,
-        //             width,
-        //             height,
-        //         );
-        //     }
-        //     i += size / 4;
-        // } // BROKEN
-
         if i == 0 {
             bufferLoop(&mut buffer, width, height, samplect);
         }

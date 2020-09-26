@@ -12,7 +12,7 @@ impl Camera {
         let viewport_height = 2.0;
         let viewport_width = aspect_ratio * viewport_height;
         let focal_length = 1.0;
-        let o = Vector3::right();
+        let o = Vector3::zero();
         let h = Vector3 {
             x: viewport_width,
             y: 0.0,

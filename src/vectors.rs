@@ -42,6 +42,12 @@ where
     pub fn reflect(v: Vector3<f64>, n: Vector3<f64>) -> Vector3<f64> {
         return v - (&n * (2.0 * v.dot(&n)));
     }
+    pub fn refract(v: Vector3<f64>, n: Vector3<f64>, index: f64) -> Vector3<f64> {
+        let cos_theta = (&v * -1.0).dot(&n);
+        let out_perp = &(v + cos_theta * n) * index;
+        let out_par = ((1.0 - out_perp.sqrmagnitude()).abs().sqrt() * -1.0) * n;
+        return out_perp + out_par;
+    }
     pub fn random_in_unitsphere() -> Vector3<T> {
         loop {
             let p = Vector3::random_range(-1.0, 1.0);
@@ -97,7 +103,7 @@ where
     }
     pub fn forward() -> Vector3<T> {
         Vector3 {
-            x: (1.0).into(),
+            x: (0.0).into(),
             y: (0.0).into(),
             z: (-1.0).into(),
         }
@@ -197,7 +203,7 @@ where
     T: Add<Output = T> + Mul + Sub<Output = T> + Copy + Into<f64>,
 {
     type Output = Vector3<T>;
-    fn sub(self, other: Self) -> Vector3<T> {
+    fn sub(self, other: &Vector3<T>) -> Vector3<T> {
         Vector3 {
             x: self.x - other.x,
             y: self.y - other.y,
@@ -211,7 +217,7 @@ where
     T: Add<Output = T> + Mul + Sub<Output = T> + Copy + Into<f64>,
 {
     type Output = Vector3<T>;
-    fn sub(self, other: Self) -> Vector3<T> {
+    fn sub(self, other: Vector3<T>) -> Vector3<T> {
         Vector3 {
             x: self.x - other.x,
             y: self.y - other.y,

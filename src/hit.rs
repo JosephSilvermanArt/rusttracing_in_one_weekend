@@ -59,10 +59,10 @@ impl Hittable for Sphere {
         if discriminant > 0.0 {
             let root = discriminant.sqrt();
             let temp = (-half_b - root) / a;
-            let hit_p = r.at(temp);
-            let outward_normal = (r.at(temp) - self.center) / self.radius;
-            let f_face = r.dir.dot(&outward_normal) < 0.0;
             if temp < t_max && temp > t_min {
+                let hit_p = r.at(temp);
+                let outward_normal = (r.at(temp) - self.center) / self.radius;
+                let f_face = r.dir.dot(&outward_normal) < 0.0;
                 return Some(HitInfo {
                     p: hit_p,
                     t: temp,
@@ -76,6 +76,9 @@ impl Hittable for Sphere {
             };
             let temp = (-half_b + root) / a;
             if temp < t_max && temp > t_min {
+                let hit_p = r.at(temp);
+                let outward_normal = (r.at(temp) - self.center) / self.radius;
+                let f_face = r.dir.dot(&outward_normal) < 0.0;
                 return Some(HitInfo {
                     p: hit_p,
                     t: temp,

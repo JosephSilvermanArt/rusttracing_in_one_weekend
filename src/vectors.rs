@@ -22,6 +22,26 @@ where
         + From<f64>
         + Into<T>,
 {
+    pub fn random_unit_vector() -> Vector3<f64> {
+        let mut rng = thread_rng();
+        let a = rng.gen_range(0.0, std::f64::consts::PI * 2.0);
+        let z = rng.gen_range(-1.0, 1.0);
+        let r = ((1.0 - (z * z)) as f64).sqrt();
+        return Vector3 {
+            x: r * a.cos(),
+            y: r * a.sin(),
+            z: z,
+        };
+    }
+    pub fn random_in_hemisphere(n: Vector3<f64>) -> Vector3<f64> {
+        let in_unit_sphere = Vector3::random_in_unitsphere();
+        match in_unit_sphere.dot(&n) > 0.0 // In the same hemisphere as the normal
+        {    true => in_unit_sphere,
+            false => &in_unit_sphere * -1.0}
+    }
+    pub fn reflect(v: Vector3<f64>, n: Vector3<f64>) -> Vector3<f64> {
+        return v - (&n * (2.0 * v.dot(&n)));
+    }
     pub fn random_in_unitsphere() -> Vector3<T> {
         loop {
             let p = Vector3::random_range(-1.0, 1.0);
@@ -213,6 +233,21 @@ where
             x: self.x * o,
             y: self.y * o,
             z: self.z * o,
+        }
+    }
+}
+impl<'a, 'b, U, T> Mul<&'a Vector3<U>> for Vector3<T>
+where
+    //TODO: Can i get rid of copy here?
+    T: Mul<Output = T> + Add + Copy + Sub,
+    U: Into<T> + Add + Mul + Sub + Copy,
+{
+    type Output = Vector3<T>;
+    fn mul(self, other: &'a Vector3<U>) -> Vector3<T> {
+        Vector3 {
+            x: self.x * other.x.into(),
+            y: self.y * other.y.into(),
+            z: self.z * other.z.into(),
         }
     }
 }

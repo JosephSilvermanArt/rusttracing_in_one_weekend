@@ -2,6 +2,7 @@
 use rand::prelude::*;
 use raytracing_one_weekend::camera::Camera;
 use raytracing_one_weekend::hit::*;
+use raytracing_one_weekend::material::*;
 use raytracing_one_weekend::ray::Ray;
 use raytracing_one_weekend::vectors::Vector3;
 use raytracing_one_weekend::vectors::Vector3 as Color;
@@ -63,70 +64,7 @@ fn hitsphere(s: &Sphere, r: &Ray) -> f64 {
         return -half_b - discriminant.sqrt() / a;
     }
 }
-fn random_unit_vector() -> Vector3<f64> {
-    let mut rng = thread_rng();
-    let a = rng.gen_range(0.0, std::f64::consts::PI * 2.0);
-    let z = rng.gen_range(-1.0, 1.0);
-    let r = ((1.0 - (z * z)) as f64).sqrt();
-    return Vector3 {
-        x: r * a.cos(),
-        y: r * a.sin(),
-        z: z,
-    };
-}
-fn random_in_hemisphere(n: Vector3<f64>) -> Vector3<f64> {
-    let in_unit_sphere = Vector3::random_in_unitsphere();
-    match in_unit_sphere.dot(&n) > 0.0 // In the same hemisphere as the normal
-    {    true => in_unit_sphere,
-        false => &in_unit_sphere * -1.0}
-}
 
-fn raycolor_old(r: &Ray) -> Color<f64> {
-    let raydir = r.dir.normalized();
-    let s = Sphere {
-        center: Vector3::forward(),
-        radius: 0.5,
-    };
-    // let t = hitsphere(
-    // &Sphere {
-    // center: Vector3::forward(),
-    // radius: 0.5,
-    // },
-    // r,
-    // );
-    // if t > 0.0 {
-    //     let N = (r.at(t) - Vector3::forward()).normalized();
-    //     return &Color {
-    //         x: N.x + 1.0,
-    //         y: N.y + 1.0,
-    //         z: N.z + 1.0,
-    //     } * 0.5;
-    // }
-    match s.hit(r, 0.0001, f64::INFINITY) {
-        Some(h) => {
-            let N = h.normal;
-            return &Color {
-                x: N.x + 1.0,
-                y: N.y + 1.0,
-                z: N.z + 1.0,
-            } * 0.5;
-        }
-        _ => {
-            let t = 0.5 * (raydir.y + 1.0);
-            let botcolor = Color {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            };
-            let topcolor = Color {
-                x: 1.0,
-                y: 1.0,
-                z: 1.0,
-            };
-            return (1.0 - t) * (botcolor) + (t * topcolor);
-        }
-    }
-}
 fn raycolor<T>(r: &Ray, world: &T, depth: u32) -> Color<f64>
 where
     T: Hittable,
@@ -136,17 +74,22 @@ where
     }
     match world.hit(r, 0.001, f64::INFINITY) {
         Some(hit) => {
-            let target = hit.p + hit.normal + random_unit_vector();
-            //let target = hit.p + random_in_hemisphere(hit.normal); SIMPLE HEMISPHERE VERSION
-            return 0.5
-                * raycolor(
-                    &Ray {
-                        origin: hit.p,
-                        dir: target - hit.p,
-                    },
-                    world,
-                    depth - 1,
-                );
+            match hit.mat.scatter(r, &hit) {
+                Some(result) => {
+                    return result.attenuation * &raycolor(&result.ray, world, depth - 1)
+                }
+                None => return Color::zero(),
+            }
+            // let target = hit.p + hit.normal + random_unit_vector();
+            // return 0.5
+            // * raycolor(
+            // &Ray {
+            // origin: hit.p,
+            // dir: target - hit.p,
+            // },
+            // world,
+            // depth - 1,
+            // );
             // (hit.normal
             // + Color {
             // x: 1.0,
@@ -170,18 +113,50 @@ where
         }
     }
 }
+// fn makeWorld() -> Hittable_List<'a> {
+// let mat_ground = material.
+// let mut world = Hittable_List {
+// objects: &mut vec![],
+// };
 
 fn bufferLoop(b: &mut Vec<u32>, width: u32, height: u32, sample_count: u32) {
     let cam = Camera::new();
     let max_depth = 50;
-    // let width = writer.x_size;
-    // let height = writer.y_size;
+
     let mut world = Hittable_List {
         objects: &mut vec![],
+    };
+    let mat1 = Metal {
+        albedo: Color {
+            x: 0.6,
+            y: 0.6,
+            z: 0.6,
+        },
+        fuzz: 0.87,
+    };
+    let mat2 = Lambert {
+        albedo: Color {
+            x: 1.0,
+            y: 0.0,
+            z: 1.0,
+        },
+    };
+    let mat3 = Lambert {
+        albedo: Color {
+            x: 0.4,
+            y: 0.66,
+            z: 0.5,
+        },
     };
     world.add(Box::new(Sphere {
         center: Vector3::forward(),
         radius: 0.5,
+        mat: Box::new(mat3),
+    })); //make_shared<sphere>(point3(0,0,-1), 0.5));
+    world.add(Box::new(Sphere {
+        center: Vector3::forward() + Vector3::right(),
+        radius: 0.5,
+        mat: Box::new(mat1),
     })); //make_shared<sphere>(point3(0,0,-1), 0.5));
     world.add(Box::new(Sphere {
         center: Vector3 {
@@ -190,6 +165,7 @@ fn bufferLoop(b: &mut Vec<u32>, width: u32, height: u32, sample_count: u32) {
             z: -1.0,
         },
         radius: 100.0,
+        mat: Box::new(mat2),
     }));
 
     for j in (0..(height)).rev() {

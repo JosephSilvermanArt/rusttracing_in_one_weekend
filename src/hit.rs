@@ -1,12 +1,14 @@
+use crate::material::Material;
 use crate::ray::Ray;
 use crate::vectors::Vector3;
-use std::sync::Arc;
+use crate::vectors::Vector3 as Color;
 
-pub struct HitInfo {
+pub struct HitInfo<'a> {
     pub t: f64,
     pub p: Vector3<f64>,
     pub normal: Vector3<f64>,
     pub front_face: bool,
+    pub mat: &'a Box<dyn Material>, //SHARED PTR IN TUTORIAL -- MAY NEED TO BE ARC, OR &, OR &MUT
 }
 
 pub trait Hittable {
@@ -28,33 +30,24 @@ impl<'a> Hittable_List<'a> {
 
 impl<'a> Hittable for Hittable_List<'a> {
     fn hit(&self, r: &Ray, t_min: f64, t_max: f64) -> Option<HitInfo> {
-        let mut last_hit = HitInfo {
-            t: 0.0,
-            p: Vector3::zero(),
-            normal: Vector3::zero(),
-            front_face: false,
-        }; //NOT TO BE RETURNED -- just have to initialize for rust
-        let mut hit_anything = false;
+        let mut out: Option<HitInfo> = None;
         let mut closest_hit = t_max;
-        for o in self.objects[..].iter() {
+        for o in self.objects.iter() {
             match o.hit(r, t_min, closest_hit) {
                 Some(hit) => {
                     closest_hit = hit.t;
-                    last_hit = hit;
-                    hit_anything = true;
+                    out = Some(hit);
                 }
                 _ => {}
             }
         }
-        match hit_anything {
-            true => Some(last_hit),
-            false => None,
-        }
+        return out;
     }
 }
 pub struct Sphere {
     pub center: Vector3<f64>,
     pub radius: f64,
+    pub mat: Box<dyn Material>, //SHARED PTR IN TUTORIAL -- MAY NEED TO BE ARC, OR &, OR &MUT
 }
 impl Hittable for Sphere {
     fn hit(&self, r: &Ray, t_min: f64, t_max: f64) -> Option<HitInfo> {
@@ -78,6 +71,7 @@ impl Hittable for Sphere {
                         true => outward_normal,
                         false => &outward_normal * -1.0,
                     },
+                    mat: &self.mat,
                 });
             };
             let temp = (-half_b + root) / a;
@@ -90,6 +84,7 @@ impl Hittable for Sphere {
                         true => outward_normal,
                         false => &outward_normal * -1.0,
                     },
+                    mat: &self.mat,
                 });
             }
         }

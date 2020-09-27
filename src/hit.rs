@@ -2,13 +2,13 @@ use crate::material::Material;
 use crate::ray::Ray;
 use crate::vectors::Vector3;
 use crate::vectors::Vector3 as Color;
-
+use std::sync::Arc;
 pub struct HitInfo<'a> {
     pub t: f64,
     pub p: Vector3<f64>,
     pub normal: Vector3<f64>,
     pub front_face: bool,
-    pub mat: &'a Box<dyn Material>, //SHARED PTR IN TUTORIAL -- MAY NEED TO BE ARC, OR &, OR &MUT
+    pub mat: &'a Arc<dyn Material>, //SHARED PTR IN TUTORIAL -- MAY NEED TO BE ARC, OR &, OR &MUT
 }
 
 pub trait Hittable {
@@ -47,7 +47,7 @@ impl<'a> Hittable for Hittable_List<'a> {
 pub struct Sphere {
     pub center: Vector3<f64>,
     pub radius: f64,
-    pub mat: Box<dyn Material>, //SHARED PTR IN TUTORIAL -- MAY NEED TO BE ARC, OR &, OR &MUT
+    pub mat: Arc<dyn Material>, //SHARED PTR IN TUTORIAL -- MAY NEED TO BE ARC, OR &, OR &MUT
 }
 impl Hittable for Sphere {
     fn hit(&self, r: &Ray, t_min: f64, t_max: f64) -> Option<HitInfo> {

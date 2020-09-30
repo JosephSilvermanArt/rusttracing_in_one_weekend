@@ -73,7 +73,7 @@ where
     if depth <= 0 {
         return Vector3::zero();
     }
-    match world.hit(r, 0.001, f64::INFINITY) {
+    match world.hit(r, 0.000001, f64::INFINITY) {
         Some(hit) => match hit.mat.scatter(r, &hit) {
             Some(result) => return result.attenuation * &raycolor(&result.ray, world, depth - 1),
             None => return Color::zero(),
@@ -86,21 +86,16 @@ where
                 z: 0.0,
             };
             let topcolor = Color {
-                x: 0.0,
-                y: 0.6,
+                x: 1.0,
+                y: 1.0,
                 z: 1.0,
             };
             return (1.0 - t) * (botcolor) + (t * topcolor);
         }
     }
 }
-// fn makeWorld() -> Hittable_List<'a> {
-// let mat_ground = material.
-// let mut world = Hittable_List {
-// objects: &mut vec![],
-// };
 struct World<'a> {
-    objects: Hittable_List<'a>,
+    objects: Hittable_List,
     materials: HashMap<&'a str, Arc<dyn Material>>,
 }
 enum matTypes {
@@ -137,17 +132,50 @@ impl<'a> World<'a> {
         self.materials.insert(name, material);
     }
     pub fn addSphere(&mut self, p: (f64, f64, f64), r: f64, mat: &'a str) {
-        let pos = Vector3 {
-            x: p.0,
-            y: p.1,
-            z: p.2,
-        };
         let m = self.materials.get(mat).unwrap();
         self.objects.add(Box::new(Sphere {
-            center: pos,
+            center: Vector3::from_tuple(p),
             radius: r,
             mat: Arc::clone(m),
         }));
+    }
+    pub fn addTri(
+        &mut self,
+        v0: (f64, f64, f64),
+        v1: (f64, f64, f64),
+        v2: (f64, f64, f64),
+        mat: &'a str,
+    ) {
+        let m = self.materials.get(mat).unwrap();
+        self.objects.add(Box::new(Tri {
+            v0: Vector3::from_tuple(v0),
+            v1: Vector3::from_tuple(v1),
+            v2: Vector3::from_tuple(v2),
+            mat: Arc::clone(m),
+        }))
+    }
+    pub fn addTriList(
+        &mut self,
+        tris: Vec<((f64, f64, f64), (f64, f64, f64), (f64, f64, f64))>,
+        mat: &'a str,
+    ) {
+        let mut mesh = Hittable_List { objects: vec![] };
+        let m = self.materials.get(mat).unwrap();
+        for t in tris {
+            mesh.add(Box::new(Tri {
+                v0: Vector3::from_tuple(t.0),
+                v1: Vector3::from_tuple(t.1),
+                v2: Vector3::from_tuple(t.2),
+                mat: Arc::clone(m),
+            }))
+        }
+        self.objects.add(Box::new(mesh));
+        // self.objects.add(Box::new(Tri {
+        //     v0: Vector3::from_tuple(v0),
+        //     v1: Vector3::from_tuple(v1),
+        //     v2: Vector3::from_tuple(v2),
+        //     mat: Arc::clone(m),
+        // }))
     }
 }
 fn bufferIterator(b: &mut u32, idx: u64, width: usize, height: usize, sample_count: u32) {
@@ -155,20 +183,29 @@ fn bufferIterator(b: &mut u32, idx: u64, width: usize, height: usize, sample_cou
     let max_depth = 50;
 
     let mut world = World {
-        objects: Hittable_List {
-            objects: &mut vec![],
-        },
+        objects: Hittable_List { objects: vec![] },
         materials: HashMap::new(),
     };
     world.addMat("green", matTypes::lambert, (0.2, 0.7, 0.3), 0.5, 1.0);
+    world.addMat("red", matTypes::lambert, (1.0, 0.1, 0.1), 0.5, 1.0);
+    world.addMat("blue", matTypes::lambert, (0.1, 0.1, 1.0), 0.5, 1.0);
     world.addMat("grey", matTypes::lambert, (0.8, 0.8, 0.8), 0.5, 1.0);
-    world.addMat("metal", matTypes::metal, (0.5, 0.5, 0.5), 0.5, 1.0);
+    world.addMat("metal", matTypes::metal, (0.6, 0.6, 0.5), 0.2, 1.0);
     world.addMat("glass", matTypes::dialectric, (1.0, 1.0, 1.0), 0.02, 1.5);
-    world.addSphere((0.0, -105.0, -1.0), 100.0, "green");
-    world.addSphere((1.0, 0.0, -1.0), 0.5, "green");
-    world.addSphere((0.0, 0.0, -1.0), 0.5, "metal");
-    world.addSphere((-1.0, 0.0, -1.0), 0.5, "glass");
-
+    world.addSphere((0.0, -100.5, -1.0), 100.0, "green");
+    world.addSphere((1.0, -0.5, -1.0), 0.6, "blue");
+    world.addSphere((-0.0, 0.0, -1.0), 0.5, "metal");
+    world.addSphere((-1.0, 0.5, -1.0), 0.5, "red");
+    // world.addTri(
+    //     (1.0, 0.0, -00.9),
+    //     (1.0, 1.0, 2.0),
+    //     (0.0, 0.0, -00.9),
+    //     "green",
+    // );
+    world.addTri((0.0, 0.0, -0.9), (1.0, 1.0, 2.0), (0.0, 1.0, -0.9), "red");
+    // let mut triList = vec![((0.0, 0.0, -1.0), (1.0, 1.0, -1.0), (0.0, 1.0, -1.0))]; // TEST FN FOR MESHES
+    // triList.push(((1.0, 0.0, 0.6), (1.0, 1.0, 0.6), (0.0, 0.0, -1.2)));
+    // world.addTriList(triList, "red");
     let i = idx % width as u64;
     let j = idx / (width) as u64;
     let mut rng = thread_rng();
@@ -197,9 +234,7 @@ fn bufferLoop(b: &mut Vec<u32>, width: u32, height: u32, sample_count: u32) {
     let max_depth = 50;
 
     let mut world = World {
-        objects: Hittable_List {
-            objects: &mut vec![],
-        },
+        objects: Hittable_List { objects: vec![] },
         materials: HashMap::new(),
     };
     world.addMat("green", matTypes::lambert, (0.2, 0.7, 0.3), 0.5, 1.0);
@@ -236,10 +271,16 @@ fn from_u8_rgb(r: u8, g: u8, b: u8) -> u32 {
     (r << 16) | (g << 8) | b
 }
 fn main() {
+    let v1 = Vector3 {
+        x: 1.0,
+        y: 1.0,
+        z: 1.0,
+    };
+    assert_eq!(v1, Vector3::one());
     // Image
-    let width = 400;
-    let height = 225;
-    let samplect = 100;
+    let width = 400 / 2;
+    let height = 225 / 2;
+    let samplect = 50;
 
     let mut buffer: Vec<u32> = vec![0; width as usize * height as usize];
     let mut renderbuffer: Vec<u32> = vec![0; width as usize * height as usize];
@@ -247,7 +288,7 @@ fn main() {
         borderless: true,
         title: false,
         resize: false,
-        scale: minifb::Scale::X2,
+        scale: minifb::Scale::X4,
         topmost: false,
         transparency: false,
         scale_mode: minifb::ScaleMode::Stretch,

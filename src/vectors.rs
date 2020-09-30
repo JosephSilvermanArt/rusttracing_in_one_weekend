@@ -22,6 +22,20 @@ where
         + From<f64>
         + Into<T>,
 {
+    pub fn div(&self, o: &Vector3<T>) -> Vector3<T> {
+        Vector3 {
+            x: self.x / o.x,
+            y: self.y / o.y,
+            z: self.z / o.z,
+        }
+    }
+    pub fn from_tuple(t: (T, T, T)) -> Vector3<T> {
+        Vector3 {
+            x: t.0,
+            y: t.1,
+            z: t.2,
+        }
+    }
     pub fn random_unit_vector() -> Vector3<f64> {
         let mut rng = thread_rng();
         let a = rng.gen_range(0.0, std::f64::consts::PI * 2.0);

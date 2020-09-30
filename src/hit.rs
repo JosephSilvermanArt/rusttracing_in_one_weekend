@@ -55,74 +55,11 @@ impl Tri {
         return (self.v0 + self.v1 + self.v2) / 3.0;
     }
 }
-// fn projectToTri(&self, p: Vector3<f64>) -> Vector3<f64> {
-//     let origin = self.center();
-//     let tri_normal = (self.v1 - self.v0).cross(&(self.p2 - self.v0)).normalized();
-//     let oc = p - origin - v2;
-//     let cos = oc.dot(&tri_normal);
-//     let sub = &tri_normal * cos;
-//     return p - sub;
-// }
-// fn getBaryCentric(&self, p: Vector3<f64>) -> Vector3<f64> // NOTE -- NOT SURE COMPARISONS WORK
-// {
-// if &self.v0 == &self.v1 && &self.v1 == &self.p2 {
-// zero area triav2lev2            match &self.v0 == &p {
-// true => {
-// return Vector3 {
-// x: 1.0,
-// y: 0.0,
-// z: 0.0,
-// }
-// }
-// false => {
-// return Vector3 {
-// miss
-// x: -100.0,
-// y: -100.0,
-// z: -100.0,
-// };
-// }
-// }
-// }
-// let v0 = self.v1 - self.v0;
-// let v1 = self.v2 - self.v0;
-// let v2 = p - self.v0;
-// let den = v0.dot(&v1);
-// let invden = 1.0 / den;
-// let v = ((v2.x * v1.y) - v1.x * v2.y) * invden;
-// let w = ((v0.x * v2.y) - v2.x * v0.y) * invden;
-// let u = 1.0 - v - w;
-// Vector3 { x: u, y: v, z: w }
-// }
-// fn triContains(&self, p: Vector3<f64>) -> bool {
-// let pBary = self.getBaryCentric(p);
-// return 0.0 <= pBary.x
-// && pBary.x <= 1.0
-// && 0.0 <= pBary.y
-// && pBary.y <= 1.0
-// && 0.0 <= pBary.z
-// && pBary.z <= 1.0;
-// }
-// }
-//SIMPLE SPHERE
-// bool hit_sphere(const point3& center, double radius, const ray& r) {
-//     vec3 oc = r.origin() - center; //  ray between 0.0 and (target center - origin), pointing opposite way
-//     auto a = r.direction.sqrmagnitude; //  sqr size of ray (sqr is cheaper) -- this should  be 1.0 right? its a unit vector??
-//     auto  half_b = dot(oc, r.direction()); // so dot direction * oc is -1 if ray is going right at, 1 if its going opp way
-//     auto c = oc.sqrmagnitude - radius*radius; // so this is, oc.magnitude - radius for all intents and purposes. Distance to outside of sphere
-//     auto discriminant = half_b*half_b - a*c; right side -- size of ray, times distance to surface, times 4.
-// //if (discriminant < 0) {
-//     return -1.0;
-//    } else {
-//        return (-half_b - sqrt(discriminant) ) / a;
-//    }
-//        return (discriminant > 0);
-// }
 impl Hittable for Tri {
     fn hit(&self, r: &Ray, t_min: f64, t_max: f64) -> Option<HitInfo> {
         let edge1 = self.v1 - self.v0;
         let edge2 = self.v2 - self.v0;
-        let normal = -1.0 * edge1.cross(&edge2).normalized(); // Possibly inverted
+        let normal = edge1.cross(&edge2).normalized(); // Possibly inverted
         let D = normal.dot(&self.v0);
         let t = (normal.dot(&r.origin) + D) / (normal.dot(&r.dir)); // WARNING ABOUT INVERTED HERE IN SCRATCHPIXEL
         if normal.dot(&r.dir).abs() < 0.00000001 {
@@ -131,9 +68,9 @@ impl Hittable for Tri {
         }
         let pHit = r.at(t);
         //Backface cull -- can we have two sided?
-        // if t < 0.0 {
-        // return None;
-        // }
+        if t < 0.0 {
+            return None;
+        }
 
         // Starting left test
 
@@ -141,22 +78,22 @@ impl Hittable for Tri {
         let edge0 = self.v1 - self.v0;
         let vp0 = pHit - self.v0;
         let C = edge0.cross(&vp0);
-        if normal.dot(&C) > 0.0 {
+        if normal.dot(&C) < 0.0 {
             return None;
         };
 
         //edge 1
-        let edge0 = self.v2 - self.v1;
+        let edge1 = self.v2 - self.v1;
         let vp1 = pHit - self.v1;
-        let C = edge0.cross(&vp1);
-        if normal.dot(&C) > 0.0 {
+        let C = edge1.cross(&vp1);
+        if normal.dot(&C) < 0.0 {
             return None;
         };
         //edge 2
-        let edge0 = self.v0 - self.v2;
+        let edge2 = self.v0 - self.v2;
         let vp2 = pHit - self.v2;
-        let C = edge0.cross(&vp2);
-        if normal.dot(&C) > 0.0 {
+        let C = edge2.cross(&vp2);
+        if normal.dot(&C) < 0.0 {
             return None;
         };
         let temp = t;

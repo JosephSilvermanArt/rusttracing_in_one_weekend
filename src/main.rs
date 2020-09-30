@@ -229,43 +229,6 @@ fn bufferIterator(b: &mut u32, idx: u64, width: usize, height: usize, sample_cou
         (255 as f64 * clamp(c.z.sqrt(), 0.0, 1.0)) as u8,
     );
 }
-fn bufferLoop(b: &mut Vec<u32>, width: u32, height: u32, sample_count: u32) {
-    let cam = Camera::new();
-    let max_depth = 50;
-
-    let mut world = World {
-        objects: Hittable_List { objects: vec![] },
-        materials: HashMap::new(),
-    };
-    world.addMat("green", matTypes::lambert, (0.2, 0.7, 0.3), 0.5, 1.0);
-    world.addMat("grey", matTypes::lambert, (0.8, 0.8, 0.8), 0.5, 1.0);
-    world.addMat("metal", matTypes::metal, (0.5, 0.5, 0.5), 0.5, 1.0);
-    world.addMat("glass", matTypes::dialectric, (1.0, 1.0, 1.0), 0.02, 1.5);
-    world.addSphere((0.0, -105.0, -1.0), 100.0, "green");
-    world.addSphere((1.0, 0.0, -1.0), 0.5, "green");
-    world.addSphere((0.0, 0.0, -1.0), 0.5, "metal");
-    world.addSphere((-1.0, 0.0, -1.0), 0.5, "glass");
-
-    for j in (0..(height)).rev() {
-        let mut rng = thread_rng();
-        for i in (0..(width)).rev() {
-            let mut pixel_color = Color::zero();
-            for k in 0..sample_count {
-                let u = (i as f64 + rng.gen_range(0.0, 1.0)) / (width) as f64;
-                let v = (j as f64 + rng.gen_range(0.0, 1.0)) / (height) as f64;
-                let r = cam.get_ray(u, v);
-                pixel_color = pixel_color + raycolor(&r, &world.objects, max_depth);
-            }
-            let c = &pixel_color * (1.0 / sample_count as f64); //divide color by samplect
-            let idx: usize = (width * height) as usize - 1 - (i as usize + (j * width) as usize);
-            b[idx] = from_u8_rgb(
-                (255 as f64 * clamp(c.x.sqrt(), 0.0, 1.0)) as u8,
-                (255 as f64 * clamp(c.y.sqrt(), 0.0, 1.0)) as u8,
-                (255 as f64 * clamp(c.z.sqrt(), 0.0, 1.0)) as u8,
-            );
-        }
-    }
-}
 fn from_u8_rgb(r: u8, g: u8, b: u8) -> u32 {
     let (r, g, b) = (r as u32, g as u32, b as u32);
     (r << 16) | (g << 8) | b

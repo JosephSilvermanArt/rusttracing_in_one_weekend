@@ -73,7 +73,7 @@ where
     if depth <= 0 {
         return Vector3::zero();
     }
-    match world.hit(r, 0.000001, f64::INFINITY) {
+    match world.hit(r, 0.001, f64::INFINITY) {
         Some(hit) => match hit.mat.scatter(r, &hit) {
             Some(result) => return result.attenuation * &raycolor(&result.ray, world, depth - 1),
             None => return Color::zero(),
@@ -188,21 +188,27 @@ fn bufferIterator(b: &mut u32, idx: u64, width: usize, height: usize, sample_cou
     };
     world.addMat("green", matTypes::lambert, (0.2, 0.7, 0.3), 0.5, 1.0);
     world.addMat("red", matTypes::lambert, (1.0, 0.1, 0.1), 0.5, 1.0);
-    world.addMat("blue", matTypes::lambert, (0.1, 0.1, 1.0), 0.5, 1.0);
+    world.addMat("blue", matTypes::lambert, (0.0, 0.1, 0.9), 0.5, 1.0);
     world.addMat("grey", matTypes::lambert, (0.8, 0.8, 0.8), 0.5, 1.0);
-    world.addMat("metal", matTypes::metal, (0.6, 0.6, 0.5), 0.2, 1.0);
-    world.addMat("glass", matTypes::dialectric, (1.0, 1.0, 1.0), 0.02, 1.5);
+    world.addMat("metal", matTypes::metal, (0.2, 0.6, 0.5), 0.01, 1.0);
+    world.addMat("glass", matTypes::dialectric, (0.2, 0.2, 1.0), 0.1, 1.5);
     world.addSphere((0.0, -100.5, -1.0), 100.0, "green");
-    world.addSphere((1.0, -0.5, -1.0), 0.6, "blue");
-    world.addSphere((-0.0, 0.0, -1.0), 0.5, "metal");
-    world.addSphere((-1.0, 0.5, -1.0), 0.5, "red");
+    world.addSphere((2.0, 0.0, -2.0), 0.6, "green");
+    world.addSphere((0.0, 0.0, -1.0), 0.5, "red");
+    world.addSphere((-1.0, 0.0, -1.0), 0.5, "red");
+    world.addSphere((0.4, -0.4, -0.8), 0.1, "blue");
     // world.addTri(
-    //     (1.0, 0.0, -00.9),
-    //     (1.0, 1.0, 2.0),
-    //     (0.0, 0.0, -00.9),
+    //     (1.0, 0.0, -0.6),
+    //     (1.0, 1.0, -0.6),
+    //     (0.0, 0.0, -1.0),
     //     "green",
     // );
-    world.addTri((0.0, 0.0, -0.9), (1.0, 1.0, 2.0), (0.0, 1.0, -0.9), "red");
+    world.addTri(
+        (1.0, -0.5 - 0.2, -0.6),
+        (1.0, 1.0 - 0.2, -0.6),
+        (0.8, -0.9 - 0.2, -2.0),
+        "metal",
+    );
     // let mut triList = vec![((0.0, 0.0, -1.0), (1.0, 1.0, -1.0), (0.0, 1.0, -1.0))]; // TEST FN FOR MESHES
     // triList.push(((1.0, 0.0, 0.6), (1.0, 1.0, 0.6), (0.0, 0.0, -1.2)));
     // world.addTriList(triList, "red");
@@ -229,6 +235,7 @@ fn bufferIterator(b: &mut u32, idx: u64, width: usize, height: usize, sample_cou
         (255 as f64 * clamp(c.z.sqrt(), 0.0, 1.0)) as u8,
     );
 }
+
 fn from_u8_rgb(r: u8, g: u8, b: u8) -> u32 {
     let (r, g, b) = (r as u32, g as u32, b as u32);
     (r << 16) | (g << 8) | b
@@ -243,7 +250,7 @@ fn main() {
     // Image
     let width = 400 / 2;
     let height = 225 / 2;
-    let samplect = 50;
+    let samplect = 25;
 
     let mut buffer: Vec<u32> = vec![0; width as usize * height as usize];
     let mut renderbuffer: Vec<u32> = vec![0; width as usize * height as usize];

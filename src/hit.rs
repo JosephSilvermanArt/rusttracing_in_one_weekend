@@ -61,7 +61,7 @@ impl Hittable for Tri {
         let edge2 = self.v2 - self.v0;
         let normal = edge1.cross(&edge2).normalized(); // Possibly inverted
         let D = normal.dot(&self.v0);
-        let t = (normal.dot(&r.origin) + D) / (normal.dot(&r.dir)); // WARNING ABOUT INVERTED HERE IN SCRATCHPIXEL
+        let t = (-1.0 * normal.dot(&r.origin) + D) / (normal.dot(&r.dir)); // WARNING ABOUT INVERTED HERE IN SCRATCHPIXEL
         if normal.dot(&r.dir).abs() < 0.00000001 {
             // parallel
             return None;
@@ -96,6 +96,7 @@ impl Hittable for Tri {
         if normal.dot(&C) < 0.0 {
             return None;
         };
+
         let temp = t;
         if t < t_max && temp > t_min {
             return Some(HitInfo {

@@ -68,11 +68,11 @@ impl Hittable for Tri {
         }
         let pHit = r.at(t);
         //Backface cull -- can we have two sided?
-        if t < 0.0 {
-            return None;
-        }
+        // if t < 0.0 {
+        //     return None;
+        // }
 
-        // Starting left test
+        // // Starting left test
 
         //edge 0
         let edge0 = self.v1 - self.v0;

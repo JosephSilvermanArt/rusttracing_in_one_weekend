@@ -37,6 +37,24 @@ impl Material for Lambert {
         });
     }
 }
+pub struct Emissive {
+    pub albedo: Color<f64>,
+    pub emission: f64,
+}
+impl Material for Emissive {
+    fn scatter(&self, r: &Ray, hit: &HitInfo) -> Option<scatter_result> {
+        let scatter_direction = Vector3::<f64>::random_unit_vector();
+        let result_scattered = Ray {
+            origin: hit.p,
+            dir: scatter_direction,
+        };
+        let result_attennuation = self.emission * self.albedo; // Need to manually copy/clone?
+        return Some(scatter_result {
+            attenuation: result_attennuation,
+            ray: result_scattered,
+        });
+    }
+}
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Metal {
     pub albedo: Color<f64>,

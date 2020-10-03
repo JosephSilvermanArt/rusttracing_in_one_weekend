@@ -61,7 +61,8 @@ where
             false => &in_unit_sphere * -1.0}
     }
     pub fn reflect(v: Vector3<f64>, n: Vector3<f64>) -> Vector3<f64> {
-        return v - (&n * (2.0 * v.dot(&n)));
+        let refl = &n * (2.0 * v.dot(&n));
+        return v - refl;
     }
     pub fn refract(v: Vector3<f64>, n: Vector3<f64>, index: f64) -> Vector3<f64> {
         let cos_theta = (&v * -1.0).dot(&n);

@@ -4,6 +4,7 @@ use raytracing_one_weekend::camera::Camera;
 use raytracing_one_weekend::hit::*;
 use raytracing_one_weekend::material::*;
 use raytracing_one_weekend::objLoader;
+use raytracing_one_weekend::objLoader::*;
 use raytracing_one_weekend::ray::Ray;
 use raytracing_one_weekend::vectors::Vector3;
 use raytracing_one_weekend::vectors::Vector3 as Color;
@@ -105,6 +106,7 @@ enum matTypes {
     metal,
     dialectric,
     emissive,
+    normal,
 }
 impl<'a> World<'a> {
     pub fn addMat(
@@ -121,6 +123,7 @@ impl<'a> World<'a> {
             z: col.2,
         };
         let material = match m {
+            matTypes::normal => Arc::new(Normal {}) as Arc<dyn Material>,
             matTypes::lambert => Arc::new(Lambert { albedo: c }) as Arc<dyn Material>,
             matTypes::metal => Arc::new(Metal {
                 albedo: c,
@@ -146,6 +149,7 @@ impl<'a> World<'a> {
             mat: Arc::clone(m),
         }));
     }
+    #[rustfmt::skip]
     pub fn addTri(
         &mut self,
         v0: (f64, f64, f64),
@@ -155,21 +159,27 @@ impl<'a> World<'a> {
     ) {
         let m = self.materials.get(mat).unwrap();
         self.objects.add(Box::new(Tri {
-            v0: Vector3::from_tuple(v0),
-            v1: Vector3::from_tuple(v1),
-            v2: Vector3::from_tuple(v2),
+            v0: Vert { P: Vector3::from_tuple(v0), UV: Vector3::zero(), N: Vector3::zero()},
+            v1: Vert { P: Vector3::from_tuple(v1), UV: Vector3::zero(), N: Vector3::zero()},
+            v2: Vert { P: Vector3::from_tuple(v2), UV: Vector3::zero(), N: Vector3::zero()},
             mat: Arc::clone(m),
         }))
     }
-    pub fn addTriMesh(&mut self, tris: Vec<Vec<Vec<f64>>>, offset: Vector3<f64>, mat: &'a str) {
+    #[rustfmt::skip]
+    pub fn addTriMesh(
+        &mut self,
+        tris: &Vec<objLoader::TriData>,
+        offset: Vector3<f64>,
+        mat: &'a str,
+    ) {
         let mut mesh = Hittable_List { objects: vec![] };
         let m = self.materials.get(mat).unwrap();
         for t in tris {
             // println!("{:?}", t);
             mesh.add(Box::new(Tri {
-                v0: Vector3::from_vector(t[0].to_vec()) + offset,
-                v1: Vector3::from_vector(t[1].to_vec()) + offset,
-                v2: Vector3::from_vector(t[2].to_vec()) + offset,
+                v0: Vert{ P: t.v0 + offset, UV: t.vt0, N: t.vn0},
+                v1: Vert{ P: t.v1 + offset, UV: t.vt1, N: t.vn1},
+                v2: Vert{ P: t.v2 + offset, UV: t.vt2, N: t.vn2},
                 mat: Arc::clone(m),
             }))
         }
@@ -188,10 +198,10 @@ fn bufferIterator(
     width: usize,
     height: usize,
     sample_count: u32,
-    MESH: &Vec<Vec<Vec<f64>>>,
+    MESH: &Vec<objLoader::TriData>,
 ) {
     let cam = Camera::new();
-    let max_depth = 50;
+    let max_depth = 600;
 
     let mut world = World {
         objects: Hittable_List { objects: vec![] },
@@ -202,11 +212,12 @@ fn bufferIterator(
     world.addMat("blue", matTypes::lambert, (0.0, 0.1, 0.9), 0.5, 1.0);
     world.addMat("grey", matTypes::lambert, (0.8, 0.8, 0.8), 0.5, 1.0);
     world.addMat("metal", matTypes::metal, (0.2, 0.6, 0.5), 0.01, 1.0);
-    world.addMat("glass", matTypes::dialectric, (0.2, 0.2, 1.0), 0.1, 1.5);
+    world.addMat("glass", matTypes::dialectric, (1.0, 1.0, 1.0), 0.00, 1.5);
     world.addMat("light", matTypes::emissive, (0.9, 0.8, 0.5), 20.0, 0.0);
+    world.addMat("normal", matTypes::normal, (0.9, 0.8, 0.5), 20.0, 0.0);
     world.addSphere((0.0, -100.5, -1.0), 100.0, "green");
     world.addSphere((2.0, 0.0, -0.5), 0.6, "red");
-    // world.addSphere((0.0, 0.0, -1.0), 0.5, "metal");
+    world.addSphere((0.0, 0.0, -3.0), 0.5, "blue");
     world.addSphere((-1.0, 0.0, -1.0), 0.5, "red");
     world.addSphere((0.4, -0.4, -0.8), 0.1, "blue");
     // world.addTri(
@@ -215,16 +226,16 @@ fn bufferIterator(
     //     (0.0, 0.0, -1.0),
     //     "green",
     // );
-    world.addTri(
-        (1.0, -0.5 - 0.2, 0.6),
-        (1.0, 1.0 - 0.2, -0.6),
-        (-0.2, -0.9 - 0.2, -1.0),
-        "blue",
-    );
+    // world.addTri(
+    //     (1.0, -0.5 - 0.2, 0.6),
+    //     (1.0, 1.0 - 0.2, -0.6),
+    //     (-0.2, -0.9 - 0.2, -1.0),
+    //     "blue",
+    // );
     world.addTriMesh(
-        MESH.to_vec(),
-        3.0 * Vector3::forward() + (0.5 * Vector3::up()),
-        "metal",
+        MESH,
+        1.5 * Vector3::forward() + (0.2 * Vector3::up()),
+        "glass",
     );
     // let mut triList = vec![((0.0, 0.0, -1.0), (1.0, 1.0, -1.0), (0.0, 1.0, -1.0))]; // TEST FN FOR MESHES
     // triList.push(((1.0, 0.0, 0.6), (1.0, 1.0, 0.6), (0.0, 0.0, -1.2)));
@@ -259,8 +270,8 @@ fn from_u8_rgb(r: u8, g: u8, b: u8) -> u32 {
 }
 fn main() {
     // Image
-    let width = 400 / 1;
-    let height = 225 / 1;
+    let width = 400 / 2;
+    let height = 225 / 2;
     let samplect = 12;
 
     let mut buffer: Vec<u32> = vec![0; width as usize * height as usize];
@@ -275,6 +286,10 @@ fn main() {
         scale_mode: minifb::ScaleMode::Stretch,
     };
     let OBJ = objLoader::objToTrilist().unwrap();
+    // assert_eq!(
+    //     objLoader::objToTrilist().unwrap()[0..10],
+    //     objLoader::objToTrilistold().unwrap()[0..10]
+    // );
     let mut window =
         Window::new("test - esc to exit", width as usize, height as usize, wi).unwrap();
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));

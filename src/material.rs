@@ -1,4 +1,4 @@
-use crate::hit::{HitInfo, Hittable};
+use crate::hit::{HitInfo, Hittable, Tri};
 use crate::ray::Ray;
 use crate::vectors::Vector3;
 use crate::vectors::Vector3 as Color;
@@ -49,6 +49,22 @@ impl Material for Emissive {
             dir: scatter_direction,
         };
         let result_attennuation = self.emission * self.albedo; // Need to manually copy/clone?
+        return Some(scatter_result {
+            attenuation: result_attennuation,
+            ray: result_scattered,
+        });
+    }
+}
+pub struct Normal {}
+
+impl Material for Normal {
+    fn scatter(&self, r: &Ray, hit: &HitInfo) -> Option<scatter_result> {
+        let scatter_direction = hit.normal + Vector3::<f64>::random_unit_vector();
+        let result_scattered = Ray {
+            origin: hit.p,
+            dir: scatter_direction,
+        };
+        let result_attennuation = hit.normal; // Need to manually copy/clone?
         return Some(scatter_result {
             attenuation: result_attennuation,
             ray: result_scattered,

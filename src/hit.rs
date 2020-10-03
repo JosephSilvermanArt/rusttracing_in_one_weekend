@@ -44,23 +44,45 @@ impl Hittable for Hittable_List {
         return out;
     }
 }
+pub struct Vert {
+    pub P: Vector3<f64>,
+    pub N: Vector3<f64>,
+    pub UV: Vector3<f64>,
+}
 pub struct Tri {
-    pub v0: Vector3<f64>,
-    pub v1: Vector3<f64>,
-    pub v2: Vector3<f64>,
+    pub v0: Vert,
+    pub v1: Vert,
+    pub v2: Vert,
     pub mat: Arc<dyn Material>,
 }
 impl Tri {
     fn center(&self) -> Vector3<f64> {
-        return (self.v0 + self.v1 + self.v2) / 3.0;
+        return (self.v0.P + self.v1.P + self.v2.P) / 3.0;
+    }
+    fn getBaryCentric(&self, p: Vector3<f64>) -> Vector3<f64> {
+        let v0v1 = self.v1.P - self.v0.P;
+        let v0v2 = self.v2.P - self.v0.P;
+        // no need to normalize
+        let N = v0v1.cross(&v0v2);
+        let edge0 = self.v1.P - self.v0.P;
+        let edge1 = self.v2.P - self.v1.P;
+        let edge2 = self.v0.P - self.v2.P;
+        // no need to normalize
+        // let N = edge0.cross(&edge2);
+        let denom = N.dot(&N); // N
+        let u = N.dot(&edge1.cross(&(p - self.v1.P))) / denom;
+        let v = N.dot(&edge2.cross(&(p - self.v2.P))) / denom;
+        let w = 1.0 - u - v;
+        return Vector3 { x: u, y: v, z: w };
     }
 }
+
 impl Hittable for Tri {
     fn hit(&self, r: &Ray, t_min: f64, t_max: f64) -> Option<HitInfo> {
-        let edge1 = self.v1 - self.v0;
-        let edge2 = self.v2 - self.v0;
-        let normal = edge1.cross(&edge2).normalized(); // Possibly inverted
-        let D = normal.dot(&self.v0);
+        let v0v1 = self.v1.P - self.v0.P;
+        let v0v2 = self.v2.P - self.v0.P;
+        let normal = v0v1.cross(&v0v2).normalized(); // Possibly inverted
+        let D = normal.dot(&self.v0.P);
         let t = (-1.0 * normal.dot(&r.origin) + D) / (normal.dot(&r.dir)); // WARNING ABOUT INVERTED HERE IN SCRATCHPIXEL
         if normal.dot(&r.dir).abs() < 0.00000001 {
             // parallel
@@ -68,36 +90,38 @@ impl Hittable for Tri {
         }
         let pHit = r.at(t);
         //Backface cull -- can we have two sided?
-        // if t < 0.0 {
-        //     return None;
-        // }
+        if t < 0.0 {
+            return None;
+        }
 
         // // Starting left test
 
         //edge 0
-        let edge0 = self.v1 - self.v0;
-        let vp0 = pHit - self.v0;
-        let C = edge0.cross(&vp0);
+        let v0v1 = self.v1.P - self.v0.P;
+        let vp0 = pHit - self.v0.P;
+        let C = v0v1.cross(&vp0);
         if normal.dot(&C) < 0.0 {
             return None;
         };
 
         //edge 1
-        let edge1 = self.v2 - self.v1;
-        let vp1 = pHit - self.v1;
-        let C = edge1.cross(&vp1);
+        let v0v1 = self.v2.P - self.v1.P;
+        let vp1 = pHit - self.v1.P;
+        let C = v0v1.cross(&vp1);
         if normal.dot(&C) < 0.0 {
             return None;
         };
         //edge 2
-        let edge2 = self.v0 - self.v2;
-        let vp2 = pHit - self.v2;
-        let C = edge2.cross(&vp2);
+        let v0v2 = self.v0.P - self.v2.P;
+        let vp2 = pHit - self.v2.P;
+        let C = v0v2.cross(&vp2);
         if normal.dot(&C) < 0.0 {
             return None;
         };
+        let bary = self.getBaryCentric(pHit);
 
         let temp = t;
+        let surfNormal = (bary.x * self.v0.N) + (bary.y * self.v1.N) + (bary.z * self.v2.N);
         if t < t_max && temp > t_min {
             return Some(HitInfo {
                 p: pHit,
@@ -110,8 +134,8 @@ impl Hittable for Tri {
             return None;
         }
 
-        // let projVec = r.dir.cross(&edge2);
-        // let determinant = edge1.dot(&projVec);
+        // let projVec = r.dir.cross(&v0v2);
+        // let determinant = edge0.dot(&projVec);
 
         // let projected = r.at((r.origin - self.projectToTri(r.dir)).sqrmagnitude());
         // let oc = projected - (r.origin * &r.dir);

@@ -26,10 +26,7 @@ pub struct Lambert {
 impl Material for Lambert {
     fn scatter(&self, r: &Ray, hit: &HitInfo) -> Option<scatter_result> {
         let scatter_direction = hit.normal + Vector3::<f64>::random_unit_vector();
-        let result_scattered = Ray {
-            origin: hit.p,
-            dir: scatter_direction,
-        };
+        let result_scattered = Ray::new(hit.p, scatter_direction);
         let result_attennuation = self.albedo; // Need to manually copy/clone?
         return Some(scatter_result {
             attenuation: result_attennuation,
@@ -44,10 +41,7 @@ pub struct Emissive {
 impl Material for Emissive {
     fn scatter(&self, r: &Ray, hit: &HitInfo) -> Option<scatter_result> {
         let scatter_direction = Vector3::<f64>::random_unit_vector();
-        let result_scattered = Ray {
-            origin: hit.p,
-            dir: scatter_direction,
-        };
+        let result_scattered = Ray::new(hit.p, scatter_direction);
         let result_attennuation = self.emission * self.albedo; // Need to manually copy/clone?
         return Some(scatter_result {
             attenuation: result_attennuation,
@@ -60,10 +54,7 @@ pub struct Normal {}
 impl Material for Normal {
     fn scatter(&self, r: &Ray, hit: &HitInfo) -> Option<scatter_result> {
         let scatter_direction = hit.normal + Vector3::<f64>::random_unit_vector();
-        let result_scattered = Ray {
-            origin: hit.p,
-            dir: scatter_direction,
-        };
+        let result_scattered = Ray::new(hit.p, scatter_direction);
         let result_attennuation = hit.normal; // Need to manually copy/clone?
         return Some(scatter_result {
             attenuation: result_attennuation,
@@ -80,10 +71,10 @@ pub struct Metal {
 impl Material for Metal {
     fn scatter(&self, r: &Ray, hit: &HitInfo) -> Option<scatter_result> {
         let scatter_direction = Vector3::<f64>::reflect(r.dir.normalized(), hit.normal);
-        let result_scattered = Ray {
-            origin: hit.p,
-            dir: scatter_direction + (&Vector3::<f64>::random_in_unitsphere() * self.fuzz),
-        };
+        let result_scattered = Ray::new(
+            hit.p,
+            scatter_direction + (&Vector3::<f64>::random_in_unitsphere() * self.fuzz),
+        );
         let result_attennuation = self.albedo; // Need to manually copy/clone?
         match scatter_direction.dot(&hit.normal) > 0.0 {
             true => {
@@ -132,10 +123,11 @@ impl Material for Dialectric {
             true => {
                 let result_attennuation = self.albedo;
                 let scatter_direction = Vector3::<f64>::reflect(unit_dir, hit.normal);
-                let result_ray = Ray {
-                    origin: hit.p,
-                    dir: scatter_direction + (&Vector3::<f64>::random_in_unitsphere() * self.fuzz),
-                };
+                let result_ray = Ray::new(
+                    hit.p,
+                    scatter_direction + (&Vector3::<f64>::random_in_unitsphere() * self.fuzz),
+                );
+
                 return Some(scatter_result {
                     attenuation: result_attennuation,
                     ray: result_ray,
@@ -148,11 +140,11 @@ impl Material for Dialectric {
                     true => {
                         let result_attennuation = self.albedo;
                         let scatter_direction = Vector3::<f64>::reflect(unit_dir, hit.normal);
-                        let result_ray = Ray {
-                            origin: hit.p,
-                            dir: scatter_direction
+                        let result_ray = Ray::new(
+                            hit.p,
+                            scatter_direction
                                 + (&Vector3::<f64>::random_in_unitsphere() * self.fuzz),
-                        };
+                        );
                         return Some(scatter_result {
                             attenuation: result_attennuation,
                             ray: result_ray,
@@ -165,11 +157,11 @@ impl Material for Dialectric {
                             (&result_attennuation * t) + (&self.albedo * (1.0 - t));
                         let scatter_direction =
                             Vector3::<f64>::refract(unit_dir, hit.normal, index);
-                        let result_ray = Ray {
-                            origin: hit.p,
-                            dir: scatter_direction
+                        let result_ray = Ray::new(
+                            hit.p,
+                            scatter_direction
                                 - (&Vector3::<f64>::random_in_unitsphere() * self.fuzz),
-                        };
+                        );
                         return Some(scatter_result {
                             attenuation: result_attennuation,
                             ray: result_ray,

@@ -1,4 +1,4 @@
-// use rand::Rng;
+#![feature(partition_point)]
 use rand::prelude::*;
 use raytracing_one_weekend::camera::Camera;
 use raytracing_one_weekend::hit::*;
@@ -11,6 +11,7 @@ use raytracing_one_weekend::vectors::Vector3 as Color;
 use std::collections::HashMap;
 use std::vec::Vec;
 // use raytracing_one_weekend::vectors::Vector3 as P    oint3;
+use raytracing_one_weekend::BVH::Bounds;
 use std::fs::File;
 use std::io::prelude::*;
 use std::sync::Arc;
@@ -18,6 +19,11 @@ use std::{thread, time};
 extern crate minifb;
 
 use minifb::{Key, Window, WindowOptions};
+
+pub static RAY_TRI_TESTS: AtomicUsize = AtomicUsize::new(0);
+pub static RAY_TRI_ISECT: AtomicUsize = AtomicUsize::new(0);
+pub static TRI_COUNT: AtomicUsize = AtomicUsize::new(0);
+pub static RAY_COUNT: AtomicUsize = AtomicUsize::new(0);
 // fn buildppm() -> std::io::Result<()> {
 //     let w = 256;
 //     let h = 256;
@@ -76,6 +82,10 @@ where
     if depth <= 0 {
         return Vector3::zero();
     }
+    RAY_COUNT.store(
+        RAY_COUNT.load(Ordering::Acquire) + 1 as usize,
+        Ordering::Relaxed,
+    );
     match world.hit(r, 0.001, f64::INFINITY) {
         Some(hit) => match hit.mat.scatter(r, &hit) {
             Some(result) => return result.attenuation * &raycolor(&result.ray, world, depth - 1),
@@ -98,7 +108,7 @@ where
     }
 }
 struct World<'a> {
-    objects: Hittable_List,
+    objects: HittableList,
     materials: HashMap<&'a str, Arc<dyn Material>>,
 }
 enum matTypes {
@@ -147,22 +157,29 @@ impl<'a> World<'a> {
             center: Vector3::from_tuple(p),
             radius: r,
             mat: Arc::clone(m),
+            bbox: Bounds::fromSphere(Vector3::from_tuple(p), r),
         }));
     }
     #[rustfmt::skip]
     pub fn addTri(
         &mut self,
-        v0: (f64, f64, f64),
-        v1: (f64, f64, f64),
-        v2: (f64, f64, f64),
+        p0: (f64, f64, f64),
+        p1: (f64, f64, f64),
+        p2: (f64, f64, f64),
         mat: &'a str,
     ) {
         let m = self.materials.get(mat).unwrap();
+        let p0 = Vector3::from_tuple(p0);
+        let p1 = Vector3::from_tuple(p1);
+        let p2 = Vector3::from_tuple(p2);
+        let mut bbox = Bounds::new();
+        bbox.fitPoints(vec![p0, p1, p2]);
         self.objects.add(Box::new(Tri {
-            v0: Vert { P: Vector3::from_tuple(v0), UV: Vector3::zero(), N: Vector3::zero()},
-            v1: Vert { P: Vector3::from_tuple(v1), UV: Vector3::zero(), N: Vector3::zero()},
-            v2: Vert { P: Vector3::from_tuple(v2), UV: Vector3::zero(), N: Vector3::zero()},
+            v0: Vert { P: p0, UV: Vector3::zero(), N: Vector3::zero()},
+            v1: Vert { P: p1, UV: Vector3::zero(), N: Vector3::zero()},
+            v2: Vert { P: p2, UV: Vector3::zero(), N: Vector3::zero()},
             mat: Arc::clone(m),
+            bbox: bbox
         }))
     }
     #[rustfmt::skip]
@@ -172,16 +189,24 @@ impl<'a> World<'a> {
         offset: Vector3<f64>,
         mat: &'a str,
     ) {
-        let mut mesh = Hittable_List { objects: vec![] };
+        let mut mesh = HittableList {
+            objects: vec![],
+            bbox: Bounds::new(),
+        };
         let m = self.materials.get(mat).unwrap();
         for t in tris {
+            TRI_COUNT.store(TRI_COUNT.load(Ordering::Acquire) + 1, Ordering::Relaxed);
             // println!("{:?}", t);
+            let mut bbox = Bounds::new();
+            bbox.fitPoints(vec![t.v0, t.v1, t.v2]);
             mesh.add(Box::new(Tri {
                 v0: Vert{ P: t.v0 + offset, UV: t.vt0, N: t.vn0},
                 v1: Vert{ P: t.v1 + offset, UV: t.vt1, N: t.vn1},
                 v2: Vert{ P: t.v2 + offset, UV: t.vt2, N: t.vn2},
                 mat: Arc::clone(m),
-            }))
+                bbox: bbox,
+            }));
+            mesh.bbox.fitPoints(vec![t.v0,t.v1,t.v2]);
         }
         self.objects.add(Box::new(mesh));
         // self.objects.add(Box::new(Tri {
@@ -192,34 +217,56 @@ impl<'a> World<'a> {
         // }))
     }
 }
-fn bufferIterator(
-    b: &mut u32,
-    idx: u64,
-    width: usize,
-    height: usize,
-    sample_count: u32,
-    MESH: &Vec<objLoader::TriData>,
-) {
-    let cam = Camera::new();
-    let max_depth = 600;
-
+#[rustfmt::skip]
+fn makeWorld<'a>() -> World<'a> {
     let mut world = World {
-        objects: Hittable_List { objects: vec![] },
+        objects: HittableList {
+            objects: vec![],
+            bbox: Bounds::infinity(),
+        },
         materials: HashMap::new(),
     };
+    let OBJ = objLoader::objToTrilist().unwrap();
     world.addMat("green", matTypes::lambert, (0.2, 0.7, 0.3), 0.5, 1.0);
     world.addMat("red", matTypes::lambert, (1.0, 0.1, 0.1), 0.5, 1.0);
     world.addMat("blue", matTypes::lambert, (0.0, 0.1, 0.9), 0.5, 1.0);
     world.addMat("grey", matTypes::lambert, (0.8, 0.8, 0.8), 0.5, 1.0);
-    world.addMat("metal", matTypes::metal, (0.2, 0.6, 0.5), 0.01, 1.0);
-    world.addMat("glass", matTypes::dialectric, (1.0, 1.0, 1.0), 0.00, 1.5);
+    world.addMat("metal", matTypes::metal, (0.2, 0.6, 0.5), 0.4, 1.0);
+    world.addMat("glass", matTypes::dialectric, (1.0, 1.0, 1.0), 0.01, 1.5);
     world.addMat("light", matTypes::emissive, (0.9, 0.8, 0.5), 20.0, 0.0);
     world.addMat("normal", matTypes::normal, (0.9, 0.8, 0.5), 20.0, 0.0);
     world.addSphere((0.0, -100.5, -1.0), 100.0, "green");
     world.addSphere((2.0, 0.0, -0.5), 0.6, "red");
-    world.addSphere((0.0, 0.0, -3.0), 0.5, "blue");
+    world.addSphere((0.0, 0.0, -3.0), 0.5, "red");
     world.addSphere((-1.0, 0.0, -1.0), 0.5, "red");
-    world.addSphere((0.4, -0.4, -0.8), 0.1, "blue");
+    world.addSphere((0.2, -0.0, -1.8), 0.1, "metal");
+    world.addSphere((0.6, -0.4, -0.8), 0.1, "metal");
+    world.addSphere((0.1, -0.1, -0.3), 0.1, "metal");
+    world.addSphere((0.7, -0.0, -0.5), 0.1, "metal");
+    world.addSphere((0.3, 0.1, -0.8), 0.1, "metal");
+    world.addSphere((0.4, 0.2, -0.8), 0.1, "metal");
+    world.addSphere((0.5, 0.3, -0.8), 0.1, "metal");
+    world.addSphere((0.6, 0.4, -0.8), 0.1, "metal");
+    world.addSphere((0.6, 0.5, -0.8), 0.1, "metal");
+    world.addSphere((0.7, 0.6, -0.8), 0.1, "metal");
+    world.addSphere((0.8, 0.7, -0.8), 0.1, "metal");
+    world.addSphere((0.9, 0.8, -0.8), 0.1, "metal");
+    world.addSphere((0.35, 0.1, -0.8), 0.1, "metal");
+    world.addSphere((0.45, 0.2, -0.8), 0.1, "metal");
+    world.addSphere((0.55, 0.3, -0.8), 0.1, "metal");
+    world.addSphere((0.65, 0.4, -0.8), 0.1, "metal");
+    world.addSphere((0.65, 0.5, -0.8), 0.1, "metal");
+    world.addSphere((0.75, 0.6, -0.8), 0.1, "metal");
+    world.addSphere((0.85, 0.7, -0.8), 0.1, "metal");
+    world.addSphere((0.95, 0.8, -0.8), 0.1, "metal");
+    world.addSphere((0.35 - 0.5, 0.1, -0.8), 0.1, "metal");
+    world.addSphere((0.45 - 0.5, 0.2, -0.8), 0.1, "metal");
+    world.addSphere((0.55 - 0.5, 0.3, -0.8), 0.1, "metal");
+    world.addSphere((0.65 - 0.5, 0.4, -0.8), 0.1, "metal");
+    world.addSphere((0.65 - 0.5, 0.5, -0.8), 0.1, "metal");
+    world.addSphere((0.75 - 0.5, 0.6, -0.8), 0.1, "metal");
+    world.addSphere((0.85 - 0.5, 0.7, -0.8), 0.1, "metal");
+    world.addSphere((0.95 - 0.5, 0.8, -0.8), 0.1, "metal");
     // world.addTri(
     //     (1.0, 0.0, -0.6),
     //     (1.0, 1.0, -0.6),
@@ -233,13 +280,26 @@ fn bufferIterator(
     //     "blue",
     // );
     world.addTriMesh(
-        MESH,
+        &OBJ,
         1.5 * Vector3::forward() + (0.2 * Vector3::up()),
-        "glass",
+        "blue",
     );
-    // let mut triList = vec![((0.0, 0.0, -1.0), (1.0, 1.0, -1.0), (0.0, 1.0, -1.0))]; // TEST FN FOR MESHES
+    // // let mut triList = vec![((0.0, 0.0, -1.0), (1.0, 1.0, -1.0), (0.0, 1.0, -1.0))]; // TEST FN FOR MESHES
     // triList.push(((1.0, 0.0, 0.6), (1.0, 1.0, 0.6), (0.0, 0.0, -1.2)));
     // world.addTriMesh(triList, "red");
+    return world;
+}
+fn bufferIterator(
+    b: &mut u32,
+    idx: u64,
+    width: usize,
+    height: usize,
+    sample_count: u32,
+    world: &World,
+) {
+    let cam = Camera::new();
+    let max_depth = 20;
+
     let i = idx % width as u64;
     let j = idx / (width) as u64;
     let mut rng = thread_rng();
@@ -268,11 +328,14 @@ fn from_u8_rgb(r: u8, g: u8, b: u8) -> u32 {
     let (r, g, b) = (r as u32, g as u32, b as u32);
     (r << 16) | (g << 8) | b
 }
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::{Duration, Instant};
+
 fn main() {
     // Image
-    let width = 400 / 2;
-    let height = 225 / 2;
-    let samplect = 12;
+    let width = 400 / 8;
+    let height = 225 / 8;
+    let samplect = 200;
 
     let mut buffer: Vec<u32> = vec![0; width as usize * height as usize];
     let mut renderbuffer: Vec<u32> = vec![0; width as usize * height as usize];
@@ -280,16 +343,11 @@ fn main() {
         borderless: true,
         title: false,
         resize: false,
-        scale: minifb::Scale::X4,
+        scale: minifb::Scale::X8,
         topmost: false,
         transparency: false,
         scale_mode: minifb::ScaleMode::Stretch,
     };
-    let OBJ = objLoader::objToTrilist().unwrap();
-    // assert_eq!(
-    //     objLoader::objToTrilist().unwrap()[0..10],
-    //     objLoader::objToTrilistold().unwrap()[0..10]
-    // );
     let mut window =
         Window::new("test - esc to exit", width as usize, height as usize, wi).unwrap();
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
@@ -297,6 +355,11 @@ fn main() {
     let mut iter = buffer.iter_mut();
     let size = height * width;
     let mut i = 0;
+
+    let world = makeWorld();
+
+    let startTime = Instant::now();
+    let mut timed = false;
     while window.is_open() && !window.is_key_down(Key::C) {
         if i < size {
             let batch = size / (2 ^ 16);
@@ -310,10 +373,18 @@ fn main() {
                     width as usize,
                     height as usize,
                     samplect,
-                    &OBJ,
+                    &world,
                 );
             }
             i += batch;
+        }
+        if i >= size && !timed {
+            println!("TIME      {}", startTime.elapsed().as_millis());
+            println!("RAY COUNT {}", RAY_COUNT.load(Ordering::Acquire));
+            println!("TRI TESTS {}", RAY_TRI_TESTS.load(Ordering::Acquire));
+            println!("TRI ISECT {}", RAY_TRI_ISECT.load(Ordering::Acquire));
+            println!("TRI COUNT {}", TRI_COUNT.load(Ordering::Acquire));
+            timed = true;
         }
         window
             .update_with_buffer(&buffer, width as usize, height as usize)

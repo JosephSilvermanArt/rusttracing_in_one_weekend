@@ -2,6 +2,10 @@ use crate::material::Material;
 use crate::ray::Ray;
 use crate::vectors::Vector3;
 use crate::vectors::Vector3 as Color;
+use crate::BVH::Bounds;
+use crate::*;
+use std::cmp::{max, min};
+use std::ops::Index;
 use std::sync::Arc;
 pub struct HitInfo<'a> {
     pub t: f64,
@@ -14,21 +18,29 @@ pub struct HitInfo<'a> {
 pub trait Hittable {
     //Should this return an option, or a bool ith a mutable ref instead, like the book? Is book way better for memory coherency?
     fn hit(&self, r: &Ray, t_min: f64, t_max: f64) -> Option<HitInfo>;
+    fn get_bounds(&self) -> &Bounds;
 }
 
-pub struct Hittable_List {
+pub struct HittableList {
     pub objects: Vec<Box<dyn Hittable>>,
+    pub bbox: Bounds,
 }
-impl Hittable_List {
+impl HittableList {
     pub fn clear(&mut self) {
         self.objects.clear();
     }
     pub fn add(&mut self, h: Box<dyn Hittable>) {
         self.objects.append(&mut vec![h]);
     }
+    pub fn generateBVH(&mut self, h: Box<dyn Hittable>) {
+        self.objects.append(&mut vec![h]);
+    }
 }
 
-impl Hittable for Hittable_List {
+impl Hittable for HittableList {
+    fn get_bounds(&self) -> &Bounds {
+        &self.bbox
+    }
     fn hit(&self, r: &Ray, t_min: f64, t_max: f64) -> Option<HitInfo> {
         let mut out: Option<HitInfo> = None;
         let mut closest_hit = t_max;
@@ -54,6 +66,7 @@ pub struct Tri {
     pub v1: Vert,
     pub v2: Vert,
     pub mat: Arc<dyn Material>,
+    pub bbox: Bounds,
 }
 impl Tri {
     fn center(&self) -> Vector3<f64> {
@@ -78,6 +91,9 @@ impl Tri {
 }
 
 impl Hittable for Tri {
+    fn get_bounds(&self) -> &Bounds {
+        return &self.bbox;
+    }
     fn hit(&self, r: &Ray, t_min: f64, t_max: f64) -> Option<HitInfo> {
         let v0v1 = self.v1.P - self.v0.P;
         let v0v2 = self.v2.P - self.v0.P;
@@ -121,13 +137,21 @@ impl Hittable for Tri {
         let bary = self.getBaryCentric(pHit);
 
         let temp = t;
-        let surfNormal = (bary.x * self.v0.N) + (bary.y * self.v1.N) + (bary.z * self.v2.N);
+        let outward_normal = (bary.x * self.v0.N) + (bary.y * self.v1.N) + (bary.z * self.v2.N);
+        let f_face = r.dir.dot(&outward_normal) < 0.0;
+        if outward_normal.dot(&r.dir).abs() < 0.00000001 {
+            // parallel
+            return None;
+        }
         if t < t_max && temp > t_min {
             return Some(HitInfo {
                 p: pHit,
                 t: temp, //think this should be like, distance from origin to t, instead
-                normal: normal,
-                front_face: true,
+                normal: match f_face {
+                    true => outward_normal,
+                    false => &outward_normal * -1.0,
+                },
+                front_face: !f_face,
                 mat: &self.mat,
             });
         } else {
@@ -153,13 +177,21 @@ impl Hittable for Tri {
         // If so, hit!! returning the tris normal, and any vert info thru barycentric lookup
     }
 }
+
 pub struct Sphere {
     pub center: Vector3<f64>,
     pub radius: f64,
     pub mat: Arc<dyn Material>, //SHARED PTR IN TUTORIAL -- MAY NEED TO BE ARC, OR &, OR &MUT
+    pub bbox: Bounds,
 }
 impl Hittable for Sphere {
+    fn get_bounds(&self) -> &Bounds {
+        &self.bbox
+    }
     fn hit(&self, r: &Ray, t_min: f64, t_max: f64) -> Option<HitInfo> {
+        if !self.bbox.hit(r, t_min, t_max) {
+            return None;
+        }
         let oc = r.origin - self.center;
         let a = r.dir.sqrmagnitude();
         let half_b = oc.dot(&r.dir);

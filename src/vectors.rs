@@ -86,6 +86,20 @@ where
             z: (0.0).into(),
         }
     }
+    pub fn inf() -> Vector3<T> {
+        Vector3 {
+            x: (f64::INFINITY).into(),
+            y: (f64::INFINITY).into(),
+            z: (f64::INFINITY).into(),
+        }
+    }
+    pub fn neg_inf() -> Vector3<T> {
+        Vector3 {
+            x: (f64::INFINITY).into(),
+            y: (f64::INFINITY).into(),
+            z: (f64::INFINITY).into(),
+        }
+    }
     pub fn random() -> Vector3<T> {
         Vector3 {
             x: thread_rng().gen::<f64>().into(),
@@ -159,7 +173,7 @@ where
 //REF DIV
 impl<'a, T, U> Div<U> for &'a Vector3<T>
 where
-    T: Add<Output = T> + Copy + Sub<Output = T> + Mul<Output = T> + Div<Output = T> + Into<f64>,
+    T: Add<Output = T> + Copy + Sub<Output = T> + Mul<Output = T> + Div<Output = T> + From<f64>,
     U: Into<T>,
 {
     type Output = Vector3<T>;
@@ -187,6 +201,22 @@ where
             y: self.y / o,
             z: self.z / o,
         }
+    }
+}
+//RHS DIV
+impl<T> Div<&Vector3<T>> for f64
+where
+    T: Add<Output = T> + Copy + Sub<Output = T> + Mul<Output = T> + Div<Output = f64> + Into<f64>,
+{
+    type Output = Vector3<f64>;
+    fn div(self: f64, other: &Vector3<T>) -> Vector3<f64> {
+        // let o: f64 = other.from();
+        let v: Vector3<f64> = Vector3 {
+            x: self / other.x.into(),
+            y: self / other.y.into(),
+            z: self / other.z.into(),
+        };
+        return v;
     }
 }
 

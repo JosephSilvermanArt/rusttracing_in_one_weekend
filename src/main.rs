@@ -8,10 +8,10 @@ use raytracing_one_weekend::objLoader::*;
 use raytracing_one_weekend::ray::Ray;
 use raytracing_one_weekend::vectors::Vector3;
 use raytracing_one_weekend::vectors::Vector3 as Color;
+use raytracing_one_weekend::BVH::{bvhNode, Bounds};
 use std::collections::HashMap;
 use std::vec::Vec;
 // use raytracing_one_weekend::vectors::Vector3 as P    oint3;
-use raytracing_one_weekend::BVH::Bounds;
 use std::fs::File;
 use std::io::prelude::*;
 use std::sync::Arc;
@@ -189,7 +189,7 @@ impl<'a> World<'a> {
         offset: Vector3<f64>,
         mat: &'a str,
     ) {
-        let mut mesh = HittableList {
+        let mut tempMesh = HittableList {
             objects: vec![],
             bbox: Bounds::new(),
         };
@@ -198,17 +198,19 @@ impl<'a> World<'a> {
             TRI_COUNT.store(TRI_COUNT.load(Ordering::Acquire) + 1, Ordering::Relaxed);
             // println!("{:?}", t);
             let mut bbox = Bounds::new();
-            bbox.fitPoints(vec![t.v0, t.v1, t.v2]);
-            mesh.add(Box::new(Tri {
+            bbox.fitPoints(vec![t.v0+ offset, t.v1+ offset, t.v2+ offset]);
+            
+            tempMesh.add(Box::new(Tri {
                 v0: Vert{ P: t.v0 + offset, UV: t.vt0, N: t.vn0},
                 v1: Vert{ P: t.v1 + offset, UV: t.vt1, N: t.vn1},
                 v2: Vert{ P: t.v2 + offset, UV: t.vt2, N: t.vn2},
                 mat: Arc::clone(m),
                 bbox: bbox,
             }));
-            mesh.bbox.fitPoints(vec![t.v0,t.v1,t.v2]);
         }
-        self.objects.add(Box::new(mesh));
+        // tempMesh = bvhNodecreate_from_hlist(tempMesh);
+        // self.objects.add(Box::new(tempMesh));
+        self.objects.add(Box::new(bvhNode::create_from_hlist(Arc::new(tempMesh)).unwrap()));
         // self.objects.add(Box::new(Tri {
         //     v0: Vector3::from_tuple(v0),
         //     v1: Vector3::from_tuple(v1),
@@ -284,6 +286,7 @@ fn makeWorld<'a>() -> World<'a> {
         1.5 * Vector3::forward() + (0.2 * Vector3::up()),
         "blue",
     );
+
     // // let mut triList = vec![((0.0, 0.0, -1.0), (1.0, 1.0, -1.0), (0.0, 1.0, -1.0))]; // TEST FN FOR MESHES
     // triList.push(((1.0, 0.0, 0.6), (1.0, 1.0, 0.6), (0.0, 0.0, -1.2)));
     // world.addTriMesh(triList, "red");
@@ -333,8 +336,8 @@ use std::time::{Duration, Instant};
 
 fn main() {
     // Image
-    let width = 400 / 8;
-    let height = 225 / 8;
+    let width = 400 / 4;
+    let height = 225 / 4;
     let samplect = 200;
 
     let mut buffer: Vec<u32> = vec![0; width as usize * height as usize];

@@ -2,7 +2,7 @@ use crate::material::Material;
 use crate::ray::Ray;
 use crate::vectors::Vector3;
 use crate::vectors::Vector3 as Color;
-use crate::BVH::Bounds;
+use crate::BVH::{bvhNode, Bounds};
 use crate::*;
 use std::cmp::{max, min};
 use std::ops::Index;
@@ -30,9 +30,6 @@ impl HittableList {
         self.objects.clear();
     }
     pub fn add(&mut self, h: Box<dyn Hittable>) {
-        self.objects.append(&mut vec![h]);
-    }
-    pub fn generateBVH(&mut self, h: Box<dyn Hittable>) {
         self.objects.append(&mut vec![h]);
     }
 }

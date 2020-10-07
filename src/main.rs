@@ -292,14 +292,14 @@ fn makeWorld<'a>() -> World<'a> {
     // world.addTriMesh(triList, "red");
     return world;
 }
-fn bufferIterator(
+fn bufferIterator<T>(
     b: &mut u32,
     idx: u64,
     width: usize,
     height: usize,
     sample_count: u32,
-    world: &World,
-) {
+    scene: &T,
+)where T:Hittable {
     let cam = Camera::new();
     let max_depth = 20;
 
@@ -311,7 +311,7 @@ fn bufferIterator(
         let u = (i as f64 + rng.gen_range(0.0, 1.0)) / (width) as f64;
         let v = (j as f64 + rng.gen_range(0.0, 1.0)) / (height) as f64;
         let r = cam.get_ray(u, v);
-        pixel_color = pixel_color + raycolor(&r, &world.objects, max_depth);
+        pixel_color = pixel_color + raycolor(&r, scene, max_depth);
     }
     let c = &pixel_color * (1.0 / sample_count as f64); //divide color by samplect
     let idx: usize = idx as usize;
@@ -338,7 +338,7 @@ fn main() {
     // Image
     let width = 400 / 4;
     let height = 225 / 4;
-    let samplect = 200;
+    let samplect = 20;
 
     let mut buffer: Vec<u32> = vec![0; width as usize * height as usize];
     let mut renderbuffer: Vec<u32> = vec![0; width as usize * height as usize];
@@ -376,7 +376,7 @@ fn main() {
                     width as usize,
                     height as usize,
                     samplect,
-                    &world,
+                    &world.objects,
                 );
             }
             i += batch;

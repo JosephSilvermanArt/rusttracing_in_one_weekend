@@ -146,47 +146,39 @@ impl Hittable for bvhNode {
     }
     fn hit(&self, r: &Ray, t_min: f64, t_max: f64) -> Option<HitInfo> {
         match self.left.as_ref() {
-            // Leaf -- matching left, but left and right will both ALWAYS be none on leaf
             None => {
-                match self.right.as_ref() {
-                    None => {}
-                    Some(_) => panic!("INVALID TREE"),
-                }
                 let mut out: Option<HitInfo> = None;
                 let mut closest_hit = t_max;
-                for i in self.indices.iter() {
-                    match self.hittable_list.objects[*i].hit(r, t_min, closest_hit) {
-                        Some(hit) => {
-                            closest_hit = hit.t;
-                            out = Some(hit);
+                if self.get_bounds().hit(r, t_min, closest_hit) {
+                    for i in self.indices.iter() {
+                        match self.hittable_list.objects[*i].hit(r, t_min, closest_hit) {
+                            Some(hit) => {
+                                closest_hit = hit.t;
+                                out = Some(hit);
+                            }
+                            None => {}
                         }
-                        None => {}
                     }
                 }
                 return out;
             }
-            Some(_) => {
-                let mut rightOut: Option<HitInfo> = None;
-                let mut leftOut: Option<HitInfo> = None;
-                let left = self.left.as_ref().unwrap();
-                let right = self.right.as_ref().unwrap();
+            Some(l) => {
                 let mut closest_hit = t_max;
-                if left.bbox.hit(r, t_min, closest_hit) {
-                    leftOut = left.hit(r, t_min, closest_hit);
-                    match &leftOut {
-                        Some(o) => closest_hit = o.t,
-                        _ => {}
+                let mut out: Option<HitInfo> = None;
+                match l.hit(r, t_min, t_max) {
+                    Some(h) => {
+                        closest_hit = h.t;
+                        out = Some(h);
                     }
+                    None => {}
                 }
-                if right.bbox.hit(r, t_min, closest_hit) {
-                    rightOut = right.hit(r, t_min, closest_hit);
-                    match &rightOut {
-                        Some(o) => return rightOut,
-
-                        None => return leftOut,
+                match self.right.as_ref().unwrap().hit(r, t_min, closest_hit) {
+                    Some(h) => {
+                        out = Some(h);
                     }
+                    None => {}
                 }
-                return None;
+                return out;
             }
         }
     }
@@ -222,8 +214,7 @@ impl bvhNode {
         }
         let longestAxis = bbox.getLongestAxis();
         //base case
-        if slice.len() == 1 {
-            // println!("1 size out");
+        if slice.len() <= 10 {
             return Some(bvhNode {
                 hittable_list: list,
                 indices: slice.to_owned(),

@@ -116,6 +116,7 @@ pub fn objToTrilist() -> Result<Vec<TriData>, Box<dyn std::error::Error>> {
     }
     let mut reader = BufReader::new(&f);
     reader.seek(std::io::SeekFrom::Start(0));
+    let mut i = 0;
     for line in reader.lines() {
         let text = &line?[..];
         match &text[0..2] {
@@ -164,6 +165,8 @@ pub fn objToTrilist() -> Result<Vec<TriData>, Box<dyn std::error::Error>> {
             }
             _ => {}
         }
+        i += 1;
+        
     }
     return Ok(tris);
 }

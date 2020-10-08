@@ -214,7 +214,8 @@ impl bvhNode {
         }
         let longestAxis = bbox.getLongestAxis();
         //base case
-        if slice.len() <= 10 {
+        if slice.len() <= 12 {
+            // println!("1 size out");
             return Some(bvhNode {
                 hittable_list: list,
                 indices: slice.to_owned(),

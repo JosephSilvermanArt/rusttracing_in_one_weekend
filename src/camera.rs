@@ -5,42 +5,47 @@ pub struct Camera {
     lower_left_corner: Vector3<f64>,
     horizontal: Vector3<f64>,
     vertical: Vector3<f64>,
+    lens_radius: f64,
+    u: Vector3<f64>,
+    v: Vector3<f64>,
+    w: Vector3<f64>,
 }
 impl Camera {
-    pub fn new() -> Camera {
-        let aspect_ratio = 16.0 / 9.0;
-        let viewport_height = 2.0;
+    pub fn new(
+        origin: Vector3<f64>,
+        target: Vector3<f64>,
+        vfov: f64,
+        aspect_ratio: f64,
+        aperature: f64,
+        focal_distance: f64,
+    ) -> Camera {
+        let theta = vfov.to_radians();
+        let h = (theta / 2.0).tan();
+        let viewport_height = h * 2.0;
         let viewport_width = aspect_ratio * viewport_height;
-        let focal_length = 1.0;
-        let o = Vector3::zero();
-        let h = Vector3 {
-            x: viewport_width,
-            y: 0.0,
-            z: 0.0,
-        };
-        let v = Vector3 {
-            x: 0.0,
-            y: viewport_height,
-            z: 0.0,
-        };
+        let up = Vector3::up();
+        let w = (origin - target).normalized();
+        let u = (up.cross(&w)).normalized();
+        let v = w.cross(&u);
+        let horiz = focal_distance * viewport_width * u;
+        let vert = focal_distance * viewport_height * v;
         Camera {
-            origin: o,
-            horizontal: h,
-            vertical: v,
-            lower_left_corner: o
-                - h / 2
-                - v / 2
-                - (Vector3 {
-                    x: 0.0,
-                    y: 0.0,
-                    z: focal_length,
-                }),
+            origin: origin,
+            horizontal: horiz,
+            vertical: vert,
+            lower_left_corner: origin - horiz / 2 - vert / 2 - focal_distance * w,
+            u: u,
+            v: v,
+            w: w,
+            lens_radius: aperature / 2.0,
         }
     }
     pub fn get_ray(&self, u: f64, v: f64) -> Ray {
+        let rd = self.lens_radius * Vector3::<f64>::random_in_unit_disk();
+        let offset = rd.x * self.u + rd.y * self.v;
         Ray::new(
-            self.origin,
-            self.lower_left_corner + u * self.horizontal + v * self.vertical - self.origin,
+            self.origin + offset,
+            self.lower_left_corner + u * self.horizontal + v * self.vertical - self.origin - offset,
         )
     }
 }

@@ -11,6 +11,7 @@ use raytracing_one_weekend::vectors::Vector3 as Color;
 use raytracing_one_weekend::BVH::{bvhNode, Bounds};
 use std::collections::HashMap;
 use std::vec::Vec;
+use rayon::prelude::*;
 // use raytracing_one_weekend::vectors::Vector3 as P    oint3;
 use std::fs::File;
 use std::io::prelude::*;
@@ -94,22 +95,22 @@ where
         None => {
             let t = 0.5 * (r.dir.normalized().y + 1.0);
             let botcolor = Color {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
             };
             let topcolor = Color {
-                x: 1.05,
-                y: 1.1,
-                z: 1.2,
+                x: 0.5,
+                y: 0.7,
+                z: 1.0,
             };
             return (1.0 - t) * (botcolor) + (t * topcolor);
         }
     }
 }
-struct World<'a> {
+struct World{
     objects: HittableList,
-    materials: HashMap<&'a str, Arc<dyn Material>>,
+    materials: HashMap<String, Arc<dyn Material>>,
 }
 enum matTypes {
     lambert,
@@ -118,10 +119,10 @@ enum matTypes {
     emissive,
     normal,
 }
-impl<'a> World<'a> {
+impl World{
     pub fn addMat(
         &mut self,
-        name: &'a str,
+        name: String,
         m: matTypes,
         col: (f64, f64, f64),
         rough: f64,
@@ -151,8 +152,8 @@ impl<'a> World<'a> {
         };
         self.materials.insert(name, material);
     }
-    pub fn addSphere(&mut self, p: (f64, f64, f64), r: f64, mat: &'a str) {
-        let m = self.materials.get(mat).unwrap();
+    pub fn addSphere(&mut self, p: (f64, f64, f64), r: f64, mat: String) {
+        let m = self.materials.get(&mat).unwrap();
         self.objects.add(Box::new(Sphere {
             center: Vector3::from_tuple(p),
             radius: r,
@@ -166,9 +167,9 @@ impl<'a> World<'a> {
         p0: (f64, f64, f64),
         p1: (f64, f64, f64),
         p2: (f64, f64, f64),
-        mat: &'a str,
+        mat: String,
     ) {
-        let m = self.materials.get(mat).unwrap();
+        let m = self.materials.get(&mat).unwrap();
         let p0 = Vector3::from_tuple(p0);
         let p1 = Vector3::from_tuple(p1);
         let p2 = Vector3::from_tuple(p2);
@@ -187,13 +188,13 @@ impl<'a> World<'a> {
         &mut self,
         tris: &Vec<objLoader::TriData>,
         offset: Vector3<f64>,
-        mat: &'a str,
+        mat: String,
     ) {
         let mut tempMesh = HittableList {
             objects: vec![],
             bbox: Bounds::new(),
         };
-        let m = self.materials.get(mat).unwrap();
+        let m = self.materials.get(&mat).unwrap();
         for t in tris {
             TRI_COUNT.store(TRI_COUNT.load(Ordering::Acquire) + 1, Ordering::Relaxed);
             // println!("{:?}", t);
@@ -220,7 +221,7 @@ impl<'a> World<'a> {
     }
 }
 #[rustfmt::skip]
-fn makeWorld<'a>() -> World<'a> {
+fn makeWorld<'a>() -> World{
     let mut world = World {
         objects: HittableList {
             objects: vec![],
@@ -229,63 +230,50 @@ fn makeWorld<'a>() -> World<'a> {
         materials: HashMap::new(),
     };
     let OBJ = objLoader::objToTrilist().unwrap();
-    world.addMat("green", matTypes::lambert, (0.2, 0.7, 0.3), 0.5, 1.0);
-    world.addMat("red", matTypes::lambert, (1.0, 0.1, 0.1), 0.5, 1.0);
-    world.addMat("blue", matTypes::lambert, (0.0, 0.1, 0.9), 0.5, 1.0);
-    world.addMat("grey", matTypes::lambert, (0.8, 0.8, 0.8), 0.5, 1.0);
-    world.addMat("metal", matTypes::metal, (0.2, 0.6, 0.5), 0.4, 1.0);
-    world.addMat("glass", matTypes::dialectric, (1.0, 1.0, 1.0), 0.01, 1.5);
-    world.addMat("light", matTypes::emissive, (0.9, 0.8, 0.5), 20.0, 0.0);
-    world.addMat("normal", matTypes::normal, (0.9, 0.8, 0.5), 20.0, 0.0);
-    world.addSphere((0.0, -100.5, -1.0), 100.0, "green");
-    world.addSphere((2.0, 0.0, -0.5), 0.6, "red");
-    world.addSphere((0.0, 0.0, -3.0), 0.5, "red");
-    world.addSphere((-1.0, 0.0, -1.0), 0.5, "red");
-    world.addSphere((0.2, -0.0, -1.8), 0.1, "metal");
-    world.addSphere((0.6, -0.4, -0.8), 0.1, "metal");
-    world.addSphere((0.1, -0.1, -0.3), 0.1, "metal");
-    world.addSphere((0.7, -0.0, -0.5), 0.1, "metal");
-    world.addSphere((0.3, 0.1, -0.8), 0.1, "metal");
-    world.addSphere((0.4, 0.2, -0.8), 0.1, "metal");
-    world.addSphere((0.5, 0.3, -0.8), 0.1, "metal");
-    world.addSphere((0.6, 0.4, -0.8), 0.1, "metal");
-    world.addSphere((0.6, 0.5, -0.8), 0.1, "metal");
-    world.addSphere((0.7, 0.6, -0.8), 0.1, "metal");
-    world.addSphere((0.8, 0.7, -0.8), 0.1, "metal");
-    world.addSphere((0.9, 0.8, -0.8), 0.1, "metal");
-    world.addSphere((0.35, 0.1, -0.8), 0.1, "metal");
-    world.addSphere((0.45, 0.2, -0.8), 0.1, "metal");
-    world.addSphere((0.55, 0.3, -0.8), 0.1, "metal");
-    world.addSphere((0.65, 0.4, -0.8), 0.1, "metal");
-    world.addSphere((0.65, 0.5, -0.8), 0.1, "metal");
-    world.addSphere((0.75, 0.6, -0.8), 0.1, "metal");
-    world.addSphere((0.85, 0.7, -0.8), 0.1, "metal");
-    world.addSphere((0.95, 0.8, -0.8), 0.1, "metal");
-    world.addSphere((0.35 - 0.5, 0.1, -0.8), 0.1, "metal");
-    world.addSphere((0.45 - 0.5, 0.2, -0.8), 0.1, "metal");
-    world.addSphere((0.55 - 0.5, 0.3, -0.8), 0.1, "metal");
-    world.addSphere((0.65 - 0.5, 0.4, -0.8), 0.1, "metal");
-    world.addSphere((0.65 - 0.5, 0.5, -0.8), 0.1, "metal");
-    world.addSphere((0.75 - 0.5, 0.6, -0.8), 0.1, "metal");
-    world.addSphere((0.85 - 0.5, 0.7, -0.8), 0.1, "metal");
-    world.addSphere((0.95 - 0.5, 0.8, -0.8), 0.1, "metal");
-    // world.addTri(
-    //     (1.0, 0.0, -0.6),
-    //     (1.0, 1.0, -0.6),
-    //     (0.0, 0.0, -1.0),
-    //     "green",
-    // );
-    // world.addTri(
-    //     (1.0, -0.5 - 0.2, 0.6),
-    //     (1.0, 1.0 - 0.2, -0.6),
-    //     (-0.2, -0.9 - 0.2, -1.0),
-    //     "blue",
-    // );
+    world.addMat("grey".to_string(), matTypes::lambert, (0.5, 0.5, 0.5), 0.5, 1.0);
+    world.addMat("glass".to_string(), matTypes::dialectric, (1.0, 1.0, 1.0), 0.001, 1.5);
+    world.addMat("Monkey".to_string(), matTypes::metal, (0.7, 0.6, 0.5), 0.01, 1.0);
+    world.addMat("bigSphere".to_string(), matTypes::lambert, (0.4, 0.2, 0.1), 0.01, 1.0);
+    world.addSphere((0.0,-1000.0,0.0), 1000.0, "grey".to_string());
     world.addTriMesh(
         &OBJ,
-        1.5 * Vector3::forward() + (0.2 * Vector3::up()),
-        "blue",
+        4.0 * Vector3::right() + (0.2 * Vector3::up()),
+        "Monkey".to_string(),
     );
+    world.addSphere((-4.0,1.0,0.0), 1.0, "bigSphere".to_string());
+    world.addSphere((0.0,1.0,0.0), 1.0, "glass".to_string());
+
+    let mut rng = thread_rng();
+    for a in -11..11 {
+        for b in -11..11
+        {
+            let a:f64 = a.into();
+            let b:f64 = a.into();
+            let choose_mat = rng.gen_range(0.0, 15.0);
+            let center = Vector3::from_tuple((a + 0.9*rng.gen_range(0.0,15.0), 0.2, b+ 0.9*rng.gen_range(0.0,15.0)));
+            if (center - Vector3::from_tuple((4.0, 0.2, 0.0))).magnitude() > 0.9 {
+                let name = (a).to_string() + &b.to_string();
+
+                if choose_mat < 0.8 * 15.0 {
+                    // diffuse
+                    let color= Color::<f64>::random() * &Color::<f64>::random();
+                    world.addMat(name.clone(), matTypes::lambert, (color.x, color.y, color.z), 0.5, 1.0);
+                    world.addSphere((center.x,center.y,center.z), 0.2, name);
+                } else if (choose_mat < 0.95 * 15.0) {
+                    // metal
+
+                    let color = Color::random_range(0.5,1.0);
+                    let fuzz = rng.gen_range(0.0, 0.5);
+                    world.addMat(name.clone(), matTypes::metal, (color.x, color.y, color.z), fuzz, 1.0);
+                    world.addSphere((center.x,center.y,center.z), 0.2, name);
+                } else {
+                    // glass
+                    world.addSphere((center.x,center.y,center.z), 0.2, "glass".to_string());
+                }
+            }
+        } 
+    }
+
 
     // // let mut triList = vec![((0.0, 0.0, -1.0), (1.0, 1.0, -1.0), (0.0, 1.0, -1.0))]; // TEST FN FOR MESHES
     // triList.push(((1.0, 0.0, 0.6), (1.0, 1.0, 0.6), (0.0, 0.0, -1.2)));
@@ -299,9 +287,10 @@ fn bufferIterator<T>(
     height: usize,
     sample_count: u32,
     scene: &T,
+    cam: &Camera
 )where T:Hittable {
-    let cam = Camera::new();
-    let max_depth = 20;
+   
+    let max_depth = 50;
 
     let i = idx % width as u64;
     let j = idx / (width) as u64;
@@ -336,17 +325,23 @@ use std::time::{Duration, Instant};
 
 fn main() {
     // Image
-    let width = 400 / 4;
-    let height = 225 / 4;
-    let samplect = 20;
+    let width = 1200 / 6;
+    let height = 800 / 6;
+    let samplect = 500 / 6;
 
+    let world = makeWorld();
+    let camOrigin = Vector3::from_tuple((10.0,2.0,3.0));
+    let camTgt = Vector3::from_tuple((0.0,0.0,0.0));
+    let cam = Camera::new(camOrigin,camTgt, 30.0, 3.0 / 2.0, 0.1, 10.0 );
+    let scene = bvhNode::create_from_hlist(Arc::new(world.objects)).unwrap();
+    
     let mut buffer: Vec<u32> = vec![0; width as usize * height as usize];
     let mut renderbuffer: Vec<u32> = vec![0; width as usize * height as usize];
     let wi = minifb::WindowOptions {
         borderless: true,
         title: false,
         resize: false,
-        scale: minifb::Scale::X8,
+        scale: minifb::Scale::X1,
         topmost: false,
         transparency: false,
         scale_mode: minifb::ScaleMode::Stretch,
@@ -355,13 +350,14 @@ fn main() {
         Window::new("test - esc to exit", width as usize, height as usize, wi).unwrap();
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
-    let mut iter = buffer.iter_mut();
+    
+   
+    
     let size = height * width;
-    let mut i = 0;
-
-    let world = makeWorld();
-
+    let mut iter = buffer.iter_mut();
+    
     let startTime = Instant::now();
+    let mut i = 0;
     let mut timed = false;
     while window.is_open() && !window.is_key_down(Key::C) {
         if i < size {
@@ -376,7 +372,8 @@ fn main() {
                     width as usize,
                     height as usize,
                     samplect,
-                    &world.objects,
+                    &scene,
+                    &cam,
                 );
             }
             i += batch;

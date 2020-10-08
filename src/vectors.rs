@@ -43,6 +43,17 @@ where
             z: t[2],
         }
     }
+    pub fn random_in_unit_disk() -> Vector3<f64> {
+        let mut rng = thread_rng();
+
+        loop {
+            let p = Vector3::from_tuple((rng.gen_range(-1.0, 1.0), rng.gen_range(-1.0, 1.0), 0.0));
+            if p.sqrmagnitude() >= 1.0 {
+                continue;
+            }
+            return p;
+        }
+    }
     pub fn random_unit_vector() -> Vector3<f64> {
         let mut rng = thread_rng();
         let a = rng.gen_range(0.0, std::f64::consts::PI * 2.0);

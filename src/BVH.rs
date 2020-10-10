@@ -68,7 +68,7 @@ impl Bounds {
             z: (self.max.z + self.min.z) / 2.0,
         };
     }
-    pub fn from_hittables(objects: &Vec<Box<dyn Hittable>>) -> Bounds {
+    pub fn from_hittables(objects: &Vec<Arc<dyn Hittable + Send + Sync>>) -> Bounds {
         let mut b = Bounds::new();
         for o in objects.iter() {
             b.max.x = b.max.x.max(o.get_bounds().max.x);
@@ -237,7 +237,6 @@ impl bvhNode {
             axis::z => list.objects[*a].get_bounds().center.z < bbox.center.z,
         });
 
-        // println!("PE,  {} {}", p, e - s);
         if s + p == e || p == 0 {
             println!("no split out");
             return Some(bvhNode {

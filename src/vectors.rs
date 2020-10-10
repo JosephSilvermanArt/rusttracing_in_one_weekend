@@ -1,11 +1,16 @@
 use rand::prelude::*;
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 use std::convert::Into;
 use std::fmt::Display;
+use std::iter::Sum;
 use std::ops::{Add, Div, Mul, Sub};
+use std::time::SystemTime;
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Vector3<T>
 where
-    T: Add + Mul + Sub,
+    T: Send + Sync + Add + Mul + Sub,
 {
     pub x: T,
     pub y: T,
@@ -13,7 +18,9 @@ where
 }
 impl<T> Vector3<T>
 where
-    T: Add<Output = T>
+    T: Send
+        + Sync
+        + Add<Output = T>
         + Copy
         + Sub<Output = T>
         + Mul<Output = T>
@@ -44,7 +51,10 @@ where
         }
     }
     pub fn random_in_unit_disk() -> Vector3<f64> {
-        let mut rng = thread_rng();
+        let d = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("TIME FAILED");
+        let mut rng = StdRng::from_entropy();
 
         loop {
             let p = Vector3::from_tuple((rng.gen_range(-1.0, 1.0), rng.gen_range(-1.0, 1.0), 0.0));
@@ -55,7 +65,10 @@ where
         }
     }
     pub fn random_unit_vector() -> Vector3<f64> {
-        let mut rng = thread_rng();
+        let d = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("TIME FAILED");
+        let mut rng = StdRng::from_entropy();
         let a = rng.gen_range(0.0, std::f64::consts::PI * 2.0);
         let z = rng.gen_range(-1.0, 1.0);
         let r = ((1.0 - (z * z)) as f64).sqrt();
@@ -119,7 +132,11 @@ where
         }
     }
     pub fn random_range(min: f64, max: f64) -> Vector3<T> {
-        let mut rng = thread_rng();
+        let d = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("TIME FAILED");
+        let mut rng = StdRng::from_entropy();
+
         Vector3 {
             x: rng.gen_range(min, max).into(),
             y: rng.gen_range(min, max).into(),
@@ -184,8 +201,15 @@ where
 //REF DIV
 impl<'a, T, U> Div<U> for &'a Vector3<T>
 where
-    T: Add<Output = T> + Copy + Sub<Output = T> + Mul<Output = T> + Div<Output = T> + From<f64>,
-    U: Into<T>,
+    T: Send
+        + Sync
+        + Add<Output = T>
+        + Copy
+        + Sub<Output = T>
+        + Mul<Output = T>
+        + Div<Output = T>
+        + From<f64>,
+    U: Send + Sync + Into<T>,
 {
     type Output = Vector3<T>;
     fn div(self, other: U) -> Vector3<T> {
@@ -201,8 +225,15 @@ where
 //VAL DIV
 impl<T, U> Div<U> for Vector3<T>
 where
-    T: Add<Output = T> + Copy + Sub<Output = T> + Mul<Output = T> + Div<Output = T> + Into<f64>,
-    U: Into<T>,
+    T: Send
+        + Sync
+        + Add<Output = T>
+        + Copy
+        + Sub<Output = T>
+        + Mul<Output = T>
+        + Div<Output = T>
+        + Into<f64>,
+    U: Send + Sync + Into<T>,
 {
     type Output = Vector3<T>;
     fn div(self, other: U) -> Vector3<T> {
@@ -217,7 +248,14 @@ where
 //RHS DIV
 impl<T> Div<&Vector3<T>> for f64
 where
-    T: Add<Output = T> + Copy + Sub<Output = T> + Mul<Output = T> + Div<Output = f64> + Into<f64>,
+    T: Send
+        + Sync
+        + Add<Output = T>
+        + Copy
+        + Sub<Output = T>
+        + Mul<Output = T>
+        + Div<Output = f64>
+        + Into<f64>,
 {
     type Output = Vector3<f64>;
     fn div(self: f64, other: &Vector3<T>) -> Vector3<f64> {
@@ -231,11 +269,47 @@ where
     }
 }
 
-// OPERATOR OVERLOADING #############
-//REF ADD
+impl Sum<Vector3<f64>> for Vector3<f64> {
+    fn sum<I>(iter: I) -> Vector3<f64>
+    where
+        I: Iterator<Item = Vector3<f64>>,
+    {
+        iter.fold(
+            Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            |a, b| Vector3 {
+                x: a.x + b.x,
+                y: a.y + b.y,
+                z: a.z + b.z,
+            },
+        )
+    }
+}
+impl<'a> Sum<&'a Vector3<f64>> for Vector3<f64> {
+    fn sum<I>(iter: I) -> Vector3<f64>
+    where
+        I: Iterator<Item = &'a Vector3<f64>>,
+    {
+        iter.fold(
+            Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            |a, b| Vector3 {
+                x: a.x + b.x,
+                y: a.y + b.y,
+                z: a.z + b.z,
+            },
+        )
+    }
+}
 impl<'a, T> Add<&'a Vector3<T>> for &'a Vector3<T>
 where
-    T: Add<Output = T> + Mul + Sub + Copy + Into<f64>,
+    T: Send + Sync + Add<Output = T> + Mul + Sub + Copy + Into<f64>,
 {
     type Output = Vector3<T>;
     fn add(self, other: Self) -> Vector3<T> {
@@ -249,7 +323,7 @@ where
 //VALUE ADD
 impl<T> Add<Vector3<T>> for Vector3<T>
 where
-    T: Add<Output = T> + Mul + Sub + Copy + Into<f64>,
+    T: Send + Sync + Add<Output = T> + Mul + Sub + Copy + Into<f64>,
 {
     type Output = Vector3<T>;
     fn add(self, other: Self) -> Vector3<T> {
@@ -263,7 +337,7 @@ where
 //REF SUB
 impl<'a, T> Sub<&'a Vector3<T>> for &'a Vector3<T>
 where
-    T: Add<Output = T> + Mul + Sub<Output = T> + Copy + Into<f64>,
+    T: Send + Sync + Add<Output = T> + Mul + Sub<Output = T> + Copy + Into<f64>,
 {
     type Output = Vector3<T>;
     fn sub(self, other: &Vector3<T>) -> Vector3<T> {
@@ -277,7 +351,7 @@ where
 // VALUE SUB
 impl<T> Sub<Vector3<T>> for Vector3<T>
 where
-    T: Add<Output = T> + Mul + Sub<Output = T> + Copy + Into<f64>,
+    T: Send + Sync + Add<Output = T> + Mul + Sub<Output = T> + Copy + Into<f64>,
 {
     type Output = Vector3<T>;
     fn sub(self, other: Vector3<T>) -> Vector3<T> {
@@ -292,8 +366,8 @@ where
 impl<'a, T, U> Mul<U> for &'a Vector3<T>
 where
     //TODO: Can i get rid of copy here?
-    T: Mul<Output = T> + Add + Copy + Sub + From<U>,
-    U: Into<T>,
+    T: Send + Sync + Mul<Output = T> + Add + Copy + Sub + From<U>,
+    U: Send + Sync + Into<T>,
 {
     type Output = Vector3<T>;
     fn mul(self, other: U) -> Vector3<T> {
@@ -308,8 +382,8 @@ where
 impl<'a, 'b, U, T> Mul<&'a Vector3<U>> for Vector3<T>
 where
     //TODO: Can i get rid of copy here?
-    T: Mul<Output = T> + Add + Copy + Sub,
-    U: Into<T> + Add + Mul + Sub + Copy,
+    T: Send + Sync + Mul<Output = T> + Add + Copy + Sub,
+    U: Send + Sync + Into<T> + Add + Mul + Sub + Copy,
 {
     type Output = Vector3<T>;
     fn mul(self, other: &'a Vector3<U>) -> Vector3<T> {
@@ -338,7 +412,7 @@ where
 
 impl<T> Display for Vector3<T>
 where
-    T: Display + Add + Mul + Sub,
+    T: Send + Sync + Display + Add + Mul + Sub,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[Vector: x {}, y {}, z {}]", self.x, self.y, self.z)

@@ -1,5 +1,7 @@
 #![feature(partition_point)]
 use rand::prelude::*;
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 use raytracing_one_weekend::camera::Camera;
 use raytracing_one_weekend::hit::*;
 use raytracing_one_weekend::material::*;
@@ -76,9 +78,7 @@ fn hitsphere(s: &Sphere, r: &Ray) -> f64 {
     }
 }
 
-fn raycolor<T>(r: &Ray, world: &T, depth: u32) -> Color<f64>
-where
-    T: Hittable,
+fn raycolor (r: &Ray, world: &dyn Hittable, depth: u32) -> Color<f64>
 {
     if depth <= 0 {
         return Vector3::zero();
@@ -110,7 +110,7 @@ where
 }
 struct World{
     objects: HittableList,
-    materials: HashMap<String, Arc<dyn Material>>,
+    materials: HashMap<String, Arc<dyn Material + Send + Sync >>,
 }
 enum matTypes {
     lambert,
@@ -134,17 +134,17 @@ impl World{
             z: col.2,
         };
         let material = match m {
-            matTypes::normal => Arc::new(Normal {}) as Arc<dyn Material>,
-            matTypes::lambert => Arc::new(Lambert { albedo: c }) as Arc<dyn Material>,
+            matTypes::normal => Arc::new(Normal {}) as Arc<dyn Material + Send + Sync>,
+            matTypes::lambert => Arc::new(Lambert { albedo: c }) as Arc<dyn Material + Send + Sync>,
             matTypes::metal => Arc::new(Metal {
                 albedo: c,
                 fuzz: rough,
-            }) as Arc<dyn Material>,
+            }) as Arc<dyn Material + Send + Sync>,
             matTypes::dialectric => Arc::new(Dialectric {
                 albedo: c,
                 fuzz: rough,
                 ref_idx: ior,
-            }) as Arc<dyn Material>,
+            }) as Arc<dyn Material + Send + Sync>,
             matTypes::emissive => Arc::new(Emissive {
                 albedo: c,
                 emission: rough,
@@ -154,7 +154,7 @@ impl World{
     }
     pub fn addSphere(&mut self, p: (f64, f64, f64), r: f64, mat: String) {
         let m = self.materials.get(&mat).unwrap();
-        self.objects.add(Box::new(Sphere {
+        self.objects.add(Arc::new(Sphere {
             center: Vector3::from_tuple(p),
             radius: r,
             mat: Arc::clone(m),
@@ -175,7 +175,7 @@ impl World{
         let p2 = Vector3::from_tuple(p2);
         let mut bbox = Bounds::new();
         bbox.fitPoints(vec![p0, p1, p2]);
-        self.objects.add(Box::new(Tri {
+        self.objects.add(Arc::new(Tri {
             v0: Vert { P: p0, UV: Vector3::zero(), N: Vector3::zero()},
             v1: Vert { P: p1, UV: Vector3::zero(), N: Vector3::zero()},
             v2: Vert { P: p2, UV: Vector3::zero(), N: Vector3::zero()},
@@ -201,7 +201,7 @@ impl World{
             let mut bbox = Bounds::new();
             bbox.fitPoints(vec![t.v0+ offset, t.v1+ offset, t.v2+ offset]);
             
-            tempMesh.add(Box::new(Tri {
+            tempMesh.add(Arc::new(Tri {
                 v0: Vert{ P: t.v0 + offset, UV: t.vt0, N: t.vn0},
                 v1: Vert{ P: t.v1 + offset, UV: t.vt1, N: t.vn1},
                 v2: Vert{ P: t.v2 + offset, UV: t.vt2, N: t.vn2},
@@ -210,9 +210,9 @@ impl World{
             }));
         }
         // tempMesh = bvhNodecreate_from_hlist(tempMesh);
-        // self.objects.add(Box::new(tempMesh));
-        self.objects.add(Box::new(bvhNode::create_from_hlist(Arc::new(tempMesh)).unwrap()));
-        // self.objects.add(Box::new(Tri {
+        // self.objects.add(Arc::new(tempMesh));
+        self.objects.add(Arc::new(bvhNode::create_from_hlist(Arc::new(tempMesh)).unwrap()));
+        // self.objects.add(Arc::new(Tri {
         //     v0: Vector3::from_tuple(v0),
         //     v1: Vector3::from_tuple(v1),
         //     v2: Vector3::from_tuple(v2),
@@ -288,21 +288,29 @@ fn bufferIterator<T>(
     sample_count: u32,
     scene: &T,
     cam: &Camera
-)where T:Hittable {
+)where T:Hittable + Send + Sync {
    
     let max_depth = 50;
 
     let i = idx % width as u64;
     let j = idx / (width) as u64;
     let mut rng = thread_rng();
-    let mut pixel_color = Color::zero();
+    let mut pixel_color = Color::<f64>::zero();
+    //TODO: MAKE THIS WORK
+    let mut uarr: Vec<f64> =  Vec::new();
+    let mut varr: Vec<f64> =  Vec::new();
     for k in 0..sample_count {
-        let u = (i as f64 + rng.gen_range(0.0, 1.0)) / (width) as f64;
-        let v = (j as f64 + rng.gen_range(0.0, 1.0)) / (height) as f64;
-        let r = cam.get_ray(u, v);
-        pixel_color = pixel_color + raycolor(&r, scene, max_depth);
+        uarr.push((i as f64 + rng.gen_range(0.0, 1.0)) / (width) as f64);
+        varr.push((j as f64 + rng.gen_range(0.0, 1.0)) / (height) as f64);
     }
-    let c = &pixel_color * (1.0 / sample_count as f64); //divide color by samplect
+    pixel_color = (0..sample_count).into_par_iter().map(
+        |k| {
+        let mut u = uarr[k as usize];
+        let mut v = varr[k as usize];
+        let r = cam.get_ray(u, v);
+        raycolor(&r, scene, max_depth)
+        }).sum();
+    let c :Color::<f64> = &pixel_color * (1.0 / sample_count as f64); //divide color by samplect
     let idx: usize = idx as usize;
     let color = from_u8_rgb(
         (255 as f64 * clamp(c.x.sqrt(), 0.0, 1.0)) as u8,
@@ -325,9 +333,9 @@ use std::time::{Duration, Instant};
 
 fn main() {
     // Image
-    let width = 1200 / 6;
-    let height = 800 / 6;
-    let samplect = 500 / 6;
+    let width = 1200 ;
+    let height = 800 ;
+    let samplect = 500;
 
     let world = makeWorld();
     let camOrigin = Vector3::from_tuple((10.0,2.0,3.0));
@@ -361,7 +369,7 @@ fn main() {
     let mut timed = false;
     while window.is_open() && !window.is_key_down(Key::C) {
         if i < size {
-            let batch = size / (2 ^ 16);
+            let batch = size /  (2 ^ 16);
             for j in i..(i + batch) {
                 if j > size - 1 {
                     break;

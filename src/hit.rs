@@ -12,7 +12,7 @@ pub struct HitInfo<'a> {
     pub p: Vector3<f64>,
     pub normal: Vector3<f64>,
     pub front_face: bool,
-    pub mat: &'a Arc<dyn Material>, //SHARED PTR IN TUTORIAL -- MAY NEED TO BE ARC, OR &, OR &MUT
+    pub mat: &'a Arc<dyn Material + Send + Sync>, //SHARED PTR IN TUTORIAL -- MAY NEED TO BE ARC, OR &, OR &MUT
 }
 
 pub trait Hittable {
@@ -22,14 +22,14 @@ pub trait Hittable {
 }
 
 pub struct HittableList {
-    pub objects: Vec<Box<dyn Hittable>>,
+    pub objects: Vec<Arc<dyn Hittable + Send + Sync>>,
     pub bbox: Bounds,
 }
 impl HittableList {
     pub fn clear(&mut self) {
         self.objects.clear();
     }
-    pub fn add(&mut self, h: Box<dyn Hittable>) {
+    pub fn add(&mut self, h: Arc<dyn Hittable + Send + Sync>) {
         self.objects.append(&mut vec![h]);
     }
 }
@@ -62,7 +62,7 @@ pub struct Tri {
     pub v0: Vert,
     pub v1: Vert,
     pub v2: Vert,
-    pub mat: Arc<dyn Material>,
+    pub mat: Arc<dyn Material + Send + Sync>,
     pub bbox: Bounds,
 }
 impl Tri {
@@ -178,7 +178,7 @@ impl Hittable for Tri {
 pub struct Sphere {
     pub center: Vector3<f64>,
     pub radius: f64,
-    pub mat: Arc<dyn Material>, //SHARED PTR IN TUTORIAL -- MAY NEED TO BE ARC, OR &, OR &MUT
+    pub mat: Arc<dyn Material + Send + Sync>, //SHARED PTR IN TUTORIAL -- MAY NEED TO BE ARC, OR &, OR &MUT
     pub bbox: Bounds,
 }
 impl Hittable for Sphere {
